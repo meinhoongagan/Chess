@@ -17,6 +17,7 @@ class Game:
         self.board = None
         self.status = None
         self.moves = None
+        self.flag = False
 
     def start(self, player1: str, player2: str):
         self.player1 = player1
@@ -72,18 +73,28 @@ class Game:
     def analyze_position(self):
         evaluation = self.get_evaluation()
         best_move = self.suggest_move()
-        winning_chances = self.get_winning_chances(evaluation)
-        return {"evaluation": evaluation, "best_move": best_move, "winning_chances": winning_chances}
+        # winning_chances = self.get_winning_chances(evaluation)
+        return {"evaluation": evaluation, "best_move": best_move}
 
     def get_winning_chances(self, evaluation):
         normalized_eval = evaluation / (abs(evaluation) + 1)
-        if evaluation >= 0:
-            white_chances = round(50 + (normalized_eval * 50), 2)
-            black_chances = round(100 - white_chances, 2)
+        if(self.flag):
+            if evaluation >= 0:
+                white_chances = round(50 + (normalized_eval * 50), 2)
+                black_chances = round(100 - white_chances, 2)
+            else:
+                black_chances = round(50 + (abs(normalized_eval) * 50), 2)
+                white_chances = round(100 - black_chances, 2)
+            self.flag = False
         else:
-            black_chances = round(50 + (abs(normalized_eval) * 50), 2)
-            white_chances = round(100 - black_chances, 2)
-    
+            if evaluation >= 0:
+                black_chances = round(50 + (normalized_eval * 50), 2)
+                white_chances = round(100 - black_chances, 2)
+            else:
+                white_chances = round(50 + (abs(normalized_eval) * 50), 2)
+                black_chances = round(100 - white_chances, 2)
+            self.flag = True
+        
         return {"white": white_chances, "black": black_chances}
 
 
