@@ -1,6 +1,11 @@
 import chess
 import pydantic
+import chess.engine
 
+# Start Stockfish engine
+engine = chess.engine.SimpleEngine.popen_uci(
+    "/mnt/c/users/gagan/onedrive/desktop/chess/backend/stockfish-windows-x86-64-avx2/stockfish/stockfish-windows-x86-64-avx2.exe"
+)
 
 class Game:
     def __init__(self):
@@ -33,7 +38,6 @@ class Game:
             raise ValueError(f"Illegal move: {move}")
     
     def update_status(self: None):
-        
         if self.board.is_checkmate():
             self.status = "checkmate"
         elif self.board.is_stalemate():
@@ -44,7 +48,7 @@ class Game:
             self.status = "ongoing"
 
     def isValidMove(self, move: str):
-        move  = self.board.parse_san(move).uci()
+        move = self.board.parse_san(move).uci()
         return chess.Move.from_uci(move) in self.board.legal_moves
 
     def get_board(self):
@@ -55,3 +59,38 @@ class Game:
     
     def get_moves(self):
         return self.moves
+
+    def get_evaluation(self):
+        evaluation = engine.analyse(self.board, chess.engine.Limit(time=0.2))
+        score = evaluation['score'].relative.score(mate_score=10000)
+        return score / 100.0  
+
+    def suggest_move(self):
+        result = engine.play(self.board, chess.engine.Limit(time=0.5))
+        return result.move.uci()
+
+    def analyze_position(self):
+        evaluation = self.get_evaluation()
+        best_move = self.suggest_move()
+        winning_chances = self.get_winning_chances(evaluation)
+        return {"evaluation": evaluation, "best_move": best_move, "winning_chances": winning_chances}
+
+    def get_winning_chances(self, evaluation):
+        normalized_eval = evaluation / (abs(evaluation) + 1)
+        if evaluation >= 0:
+            white_chances = round(50 + (normalized_eval * 50), 2)
+            black_chances = round(100 - white_chances, 2)
+        else:
+            black_chances = round(50 + (abs(normalized_eval) * 50), 2)
+            white_chances = round(100 - black_chances, 2)
+    
+        return {"white": white_chances, "black": black_chances}
+
+
+    def get_pv_moves(self):
+        analysis = engine.analyse(self.board, chess.engine.Limit(time=1.0)) 
+        pv_moves = analysis.get("pv", [])
+        return [move.uci() for move in pv_moves]
+    
+def get_opening_name(self):
+    return chess.pgn.read_game(chess.pgn.StringExStream(self.board.fen())).headers.get('Opening', 'Unknown Opening')

@@ -6,3 +6,4 @@ python-chess==1.999
 pydantic==1.10.9
 python-dotenv
 redis==3.5.3
+stockfish==3.28.0

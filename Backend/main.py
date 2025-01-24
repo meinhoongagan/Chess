@@ -47,11 +47,13 @@ async def websocket_endpoint(websocket: WebSocket):
                     # Notify both players
                     await websocket.send_json({
                         "event": "GAME_STARTED",
-                        "data": {"opponent": opponent_name}
+                        "data": {"opponent": opponent_name},
+                        "turn": player_name
                     })
                     await opponent_socket.send_json({
                         "event": "GAME_STARTED",
-                        "data": {"opponent": player_name}
+                        "data": {"opponent": player_name},
+                        "turn": player_name
                     })
 
                     # Clear waiting_user
@@ -104,12 +106,44 @@ async def websocket_endpoint(websocket: WebSocket):
                     # Notify both players of the move
                     player1_socket = active_games[game.player1]["websocket"]
                     player2_socket = active_games[game.player2]["websocket"]
-                    game.current_turn = game.player1 if game.current_turn == game.player2 else game.player2
 
                     game.update_status()
                     game_status = game.get_status()
+                    if game_status== "ongoing":
+                        try:
+                            game.current_turn = game.player1 if game.current_turn == game.player2 else game.player2
+                            evaluation = game.get_evaluation()
+                            analysis = game.analyze_position()
+                            winning_chance = game.get_winning_chances(evaluation)
+                            suggest = game.suggest_move()
+                            # opening = game.get_opening_name()
+                        except Exception as e:
+                            print(e)
+                            evaluation = None
+                            analysis = None
+                            winning_chance = None
+                            suggest = None
+                            # opening = None
+                            
 
-                    if game_status!= "ongoing":
+                        response = {
+                            "event": "MOVE",
+                            "data": {"move": move, "turn": game.current_turn},
+                            "evaluation": evaluation,
+                            "analysis": analysis,
+                            "winning_chance": winning_chance,
+                            "suggest": suggest,
+                            # "oppening": opening
+                        }
+
+                        await player1_socket.send_json({
+                            **response
+                        })
+                        await player2_socket.send_json({
+                            **response
+                        })
+                    else:
+
                         winner = game.current_turn
                         await player1_socket.send_json({
                             "event": "GAME_OVER",
@@ -122,17 +156,6 @@ async def websocket_endpoint(websocket: WebSocket):
                         # Remove game from active_games
                         del active_games[game.player1]
                         del active_games[game.player2]
-                    else:
-                        await player1_socket.send_json({
-                        "event": "MOVE",
-                        "data": {"move": move, "turn": game.current_turn}
-                        })
-                        await player2_socket.send_json({
-                            "event": "MOVE",
-                            "data": {"move": move, "turn": game.current_turn}
-                        })
-
-                    # Check if game is over
 
                 except Exception as e:
                     await websocket.send_json({
