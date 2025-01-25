@@ -43,11 +43,13 @@ async def websocket_endpoint(
                     game = Game()
                     time = TimeControl(
                         total_time=event.data["total_time"], 
-                        increment=event.data["increment"]
+                        increment=event.data["increment"],
+                        game=game,
+                        active_games=active_games
                         )
                     game.start(player_name, opponent_name)
                     game.current_turn = player_name
-                    time.start(player_name, player_name, opponent_name,websocket, opponent_socket, game)
+                    time.start(player_name, player_name, opponent_name,websocket, opponent_socket)
                     # Save game in active_games
                     active_games[player_name] = {"game": game, "websocket": websocket, "time": time}
                     active_games[opponent_name] = {"game": game, "websocket": opponent_socket, "time": time}
@@ -75,7 +77,9 @@ async def websocket_endpoint(
                     })
 
             elif event.event == "MOVE":
+                
                 player_name = None
+
                 for name, details in active_games.items():
                     if details["websocket"] == websocket:
                         player_name = name
@@ -117,9 +121,10 @@ async def websocket_endpoint(
                     player2_socket = active_games[game.player2]["websocket"]
 
                     game.update_status()
-
                     game_status = game.get_status()
-                    if game_status== "ongoing" and time.is_timer_active():
+                    active_time = time.timer_active
+                    print(active_time)
+                    if game_status == "ongoing" and active_time:
                         try:
                             time_update = time.process_move(player_name)
                             game.current_turn = game.player1 if game.current_turn == game.player2 else game.player2

@@ -4,7 +4,7 @@ import threading
 from Game import Game
 
 class TimeControl:
-    def __init__(self, total_time=600, increment=10):
+    def __init__(self, total_time=600, increment=10,game = None, active_games = None):
         self.total_time = total_time
         self.increment = increment
         self.player1 = None
@@ -14,9 +14,10 @@ class TimeControl:
         self.current_player = None
         self.last_move_time = None
         self.timer_active = False
-        self.game = None
+        self.game = game
+        self.active_games = active_games
 
-    def start(self, starting_player: str, player1: str, player2: str, websocket1, websocket2,game: Game):
+    def start(self, starting_player: str, player1: str, player2: str, websocket1, websocket2):
         """
         Start time tracking with a callback for timeout
         :param starting_player: Player whose turn starts
@@ -27,7 +28,6 @@ class TimeControl:
         self.current_player = starting_player
         self.last_move_time = time.time()
         self.timer_active = True
-        self.game = game
 
         # Start a separate thread to run the timer logic
         threading.Thread(target=self._timer_thread, args=(websocket1, websocket2), daemon=True).start()
@@ -77,6 +77,8 @@ class TimeControl:
             print(message)
 
             if message:
+                del self.active_games[self.player1]
+                del self.active_games[self.player2]
                 # Send the timeout message to both sockets
                 await socket1.send_json(message)
                 await socket2.send_json(message)
