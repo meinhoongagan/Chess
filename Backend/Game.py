@@ -77,21 +77,22 @@ class Game:
         return {"evaluation": evaluation, "best_move": best_move}
 
     def get_winning_chances(self, evaluation):
-        normalized_eval = evaluation / (abs(evaluation) + 1)
+        if evaluation is 0:
+            return {"white": 50.0, "black": 50.0}
         if(self.flag):
             if evaluation >= 0:
-                white_chances = round(50 + (normalized_eval * 50), 2)
+                white_chances = round(50 + evaluation, 2)
                 black_chances = round(100 - white_chances, 2)
             else:
-                black_chances = round(50 + (abs(normalized_eval) * 50), 2)
+                black_chances = round(50 + abs(evaluation), 2)
                 white_chances = round(100 - black_chances, 2)
             self.flag = False
         else:
             if evaluation >= 0:
-                black_chances = round(50 + (normalized_eval * 50), 2)
+                black_chances = round(50 + evaluation * 10, 2)
                 white_chances = round(100 - black_chances, 2)
             else:
-                white_chances = round(50 + (abs(normalized_eval) * 50), 2)
+                white_chances = round(50 + abs(evaluation) * 10, 2)
                 black_chances = round(100 - white_chances, 2)
             self.flag = True
         
@@ -102,6 +103,3 @@ class Game:
         analysis = engine.analyse(self.board, chess.engine.Limit(time=1.0)) 
         pv_moves = analysis.get("pv", [])
         return [move.uci() for move in pv_moves]
-    
-def get_opening_name(self):
-    return chess.pgn.read_game(chess.pgn.StringExStream(self.board.fen())).headers.get('Opening', 'Unknown Opening')

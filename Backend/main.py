@@ -1,7 +1,8 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import BackgroundTasks, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from model import Event
 from Game import Game
+from TimeControl import TimeControl
 
 app = FastAPI()
 
@@ -18,7 +19,10 @@ active_games = {}  # To track active games keyed by player names
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(
+        websocket: WebSocket,
+        background_tasks: BackgroundTasks
+        ):
     global waiting_user, active_games
 
     await websocket.accept()
@@ -37,12 +41,16 @@ async def websocket_endpoint(websocket: WebSocket):
                     opponent_socket = waiting_user["websocket"]
 
                     game = Game()
+                    time = TimeControl(
+                        total_time=event.data["total_time"], 
+                        increment=event.data["increment"]
+                        )
                     game.start(player_name, opponent_name)
                     game.current_turn = player_name
-
+                    time.start(player_name, player_name, opponent_name,websocket, opponent_socket, game)
                     # Save game in active_games
-                    active_games[player_name] = {"game": game, "websocket": websocket}
-                    active_games[opponent_name] = {"game": game, "websocket": opponent_socket}
+                    active_games[player_name] = {"game": game, "websocket": websocket, "time": time}
+                    active_games[opponent_name] = {"game": game, "websocket": opponent_socket, "time": time}
 
                     # Notify both players
                     await websocket.send_json({
@@ -82,6 +90,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 game_data = active_games[player_name]
                 game = game_data["game"]
+                time = game_data["time"]
 
                 # Check if it's the player's turn
                 if game.current_turn != player_name:
@@ -108,22 +117,23 @@ async def websocket_endpoint(websocket: WebSocket):
                     player2_socket = active_games[game.player2]["websocket"]
 
                     game.update_status()
+
                     game_status = game.get_status()
-                    if game_status== "ongoing":
+                    if game_status== "ongoing" and time.is_timer_active():
                         try:
+                            time_update = time.process_move(player_name)
                             game.current_turn = game.player1 if game.current_turn == game.player2 else game.player2
                             evaluation = game.get_evaluation()
                             analysis = game.analyze_position()
                             winning_chance = game.get_winning_chances(evaluation)
                             suggest = game.suggest_move()
-                            # opening = game.get_opening_name()
                         except Exception as e:
                             print(e)
+                            time_update = None
                             evaluation = None
                             analysis = None
                             winning_chance = None
                             suggest = None
-                            # opening = None
                             
 
                         response = {
@@ -133,6 +143,7 @@ async def websocket_endpoint(websocket: WebSocket):
                             "analysis": analysis,
                             "winning_chance": winning_chance,
                             "suggest": suggest,
+                            "time": time_update
                             # "oppening": opening
                         }
 
@@ -142,8 +153,8 @@ async def websocket_endpoint(websocket: WebSocket):
                         await player2_socket.send_json({
                             **response
                         })
-                    else:
 
+                    else:
                         winner = game.current_turn
                         await player1_socket.send_json({
                             "event": "GAME_OVER",
