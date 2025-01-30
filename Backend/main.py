@@ -218,8 +218,9 @@ async def websocket_endpoint(
                             "data": {"status": game.get_status(), "winner": winner}
                         })
                         # Remove game from active_games
-                        del active_games[game.player1]
-                        del active_games[game.player2]
+                        active_games.pop(game.player1, None)
+                        active_games.pop(game.player2, None)
+
 
                 except Exception as e:
                     await websocket.send_json({

@@ -77,8 +77,9 @@ class TimeControl:
             print(message)
 
             if message:
-                del self.active_games[self.player1]
-                del self.active_games[self.player2]
+                self.active_games.pop(self.player1, None)
+                self.active_games.pop(self.player2, None)
+
                 # Send the timeout message to both sockets
                 await socket1.send_json(message)
                 await socket2.send_json(message)
