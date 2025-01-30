@@ -1,3 +1,4 @@
+from collections import defaultdict
 from fastapi import BackgroundTasks, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -16,7 +17,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-waiting_user = None  # To store the first player waiting for an opponent
+waiting_users = defaultdict(list)  # To store the first player waiting for an opponent
 active_games = {}  # To track active games keyed by player names
 signaling = Signaling()
 
@@ -39,22 +40,26 @@ async def websocket_endpoint(
             print(f"Received event: {event.event}")  # Debug log
             if event.event == "INIT_GAME":
                 player_name = event.data["player_name"]
+                total_time = event.data["total_time"]
+                increment = event.data["increment"]
+                time_key = (total_time, increment)
 
-                if waiting_user:
-                    # Match with waiting user and start a new game
-                    opponent_name = waiting_user["player_name"]
-                    opponent_socket = waiting_user["websocket"]
+                if waiting_users[time_key]:
+                    opponent_info = waiting_users[time_key].pop(0)
+                    opponent_name = opponent_info["player_name"]
+                    opponent_socket = opponent_info["websocket"]
 
                     game = Game()
                     time = TimeControl(
-                        total_time=event.data["total_time"], 
-                        increment=event.data["increment"],
+                        total_time=total_time,
+                        increment=increment,
                         game=game,
                         active_games=active_games
-                        )
+                    )
                     game.start(player_name, opponent_name)
                     game.current_turn = player_name
-                    time.start(player_name, player_name, opponent_name,websocket, opponent_socket)
+                    time.start(player_name, player_name, opponent_name, websocket, opponent_socket)
+                    
                     # Save game in active_games
                     active_games[player_name] = {"game": game, "websocket": websocket, "time": time}
                     active_games[opponent_name] = {"game": game, "websocket": opponent_socket, "time": time}
@@ -70,15 +75,22 @@ async def websocket_endpoint(
                         "data": {"opponent": player_name},
                         "turn": player_name
                     })
-
-                    # Clear waiting_user
-                    waiting_user = None
                 else:
-                    # No opponent available; wait
-                    waiting_user = {"player_name": player_name, "websocket": websocket}
+                    # Add this player to the waiting queue
+                    waiting_users[time_key].append({
+                        "player_name": player_name,
+                        "websocket": websocket,
+                        "total_time": total_time,
+                        "increment": increment
+                    })
+                    
+                    # Get count of players waiting with same time control
+                    waiting_count = len(waiting_users[time_key])
                     await websocket.send_json({
                         "event": "WAITING",
-                        "data": {"message": "Waiting for an opponent..."}
+                        "data": {
+                            "message": f"Waiting for an opponent with {total_time}s + {increment}s increment... ({waiting_count} players in queue)"
+                        }
                     })
             
 
@@ -217,9 +229,16 @@ async def websocket_endpoint(
 
 
     except WebSocketDisconnect:
-        # Handle disconnects
-        if waiting_user and waiting_user["websocket"] == websocket:
-            waiting_user = None
+
+        for time_key in list(waiting_users.keys()):
+            waiting_users[time_key] = [
+                user for user in waiting_users[time_key] 
+                if user["websocket"] != websocket
+            ]
+
+            if not waiting_users[time_key]:
+                del waiting_users[time_key]
+
 
         for name, details in list(active_games.items()):
             if details["websocket"] == websocket:
@@ -233,7 +252,6 @@ async def websocket_endpoint(
                     "data": {"status": "disconnected", "winner": opponent_name}
                 })
 
-                # Remove game
                 del active_games[game.player1]
                 del active_games[game.player2]
 
