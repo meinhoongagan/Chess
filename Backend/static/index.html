@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chess Audio Chat</title>
+    <style>
+        .container {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            background: #f0f0f0;
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+        }
+        .audio-indicators {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .audio-indicator {
+            padding: 10px;
+            border-radius: 4px;
+            background: #eee;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .indicator-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ccc;
+        }
+        .active {
+            background: #4CAF50;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            background: #2196F3;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #1976D2;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .volume-meter {
+            width: 100px;
+            height: 10px;
+            background: #eee;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .volume-level {
+            width: 0%;
+            height: 100%;
+            background: #4CAF50;
+            transition: width 0.1s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="status" class="status">Disconnected</div>
+        
+        <div class="audio-indicators">
+            <div class="audio-indicator">
+                <div id="localIndicator" class="indicator-dot"></div>
+                <span>Your Audio</span>
+                <div class="volume-meter">
+                    <div id="localVolume" class="volume-level"></div>
+                </div>
+            </div>
+            <div class="audio-indicator">
+                <div id="remoteIndicator" class="indicator-dot"></div>
+                <span>Opponent Audio</span>
+                <div class="volume-meter">
+                    <div id="remoteVolume" class="volume-level"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button onclick="startGame()" id="joinButton">Join Game</button>
+            <button onclick="testAudio()" id="testButton" disabled>Test Audio</button>
+            <button onclick="toggleMute()" id="muteButton" disabled>Mute</button>
+        </div>
+    </div>
+    <script src="client.js"></script>
+    <script>
+        let audioChat;
+        let audioContext;
+        let localAnalyser;
+        let remoteAnalyser;
+
+        function startGame() {
+            const playerName = 'Player' + Math.floor(Math.random() * 1000);
+            audioChat = new ChessAudioChat(playerName);
+            audioChat.startGame();
+            document.getElementById('joinButton').disabled = true;
+        }
+        
+        function toggleMute() {
+            if (audioChat) {
+                const isMuted = !audioChat.toggleMute();
+                document.getElementById('muteButton').textContent = isMuted ? 'Unmute' : 'Mute';
+                document.getElementById('localIndicator').classList.toggle('active', !isMuted);
+            }
+        }
+
+        function testAudio() {
+            if (audioChat && audioChat.localStream) {
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                gainNode.gain.value = 0.1;  // Quiet test tone
+                oscillator.frequency.value = 440;  // A4 note
+                oscillator.start();
+                setTimeout(() => oscillator.stop(), 500);  // Stop after 500ms
+            }
+        }
+
+        function setupAudioAnalysis() {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // Setup audio analysis
+            if (audioChat.localStream) {
+                const localSource = audioContext.createMediaStreamSource(audioChat.localStream);
+                localAnalyser = audioContext.createAnalyser();
+                localSource.connect(localAnalyser);
+                
+                const localDataArray = new Uint8Array(localAnalyser.frequencyBinCount);
+                
+                function updateLocalVolume() {
+                    localAnalyser.getByteFrequencyData(localDataArray);
+                    const average = localDataArray.reduce((a, b) => a + b) / localDataArray.length;
+                    const volume = Math.min(100, Math.round((average / 128) * 100));
+                    document.getElementById('localVolume').style.width = volume + '%';
+                    requestAnimationFrame(updateLocalVolume);
+                }
+                updateLocalVolume();
+            }
+
+            if (audioChat.remoteStream) {
+                const remoteSource = audioContext.createMediaStreamSource(audioChat.remoteStream);
+                remoteAnalyser = audioContext.createAnalyser();
+                remoteSource.connect(remoteAnalyser);
+                
+                const remoteDataArray = new Uint8Array(remoteAnalyser.frequencyBinCount);
+                
+                function updateRemoteVolume() {
+                    remoteAnalyser.getByteFrequencyData(remoteDataArray);
+                    const average = remoteDataArray.reduce((a, b) => a + b) / remoteDataArray.length;
+                    const volume = Math.min(100, Math.round((average / 128) * 100));
+                    document.getElementById('remoteVolume').style.width = volume + '%';
+                    requestAnimationFrame(updateRemoteVolume);
+                }
+                updateRemoteVolume();
+            }
+        }
+
+        // Enable buttons when audio is ready
+        document.addEventListener('audioReady', () => {
+            document.getElementById('testButton').disabled = false;
+            document.getElementById('muteButton').disabled = false;
+            setupAudioAnalysis();
+        });
+    </script>
+</body>
+</html>
