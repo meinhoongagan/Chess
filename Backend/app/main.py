@@ -2,10 +2,10 @@ from collections import defaultdict
 from fastapi import BackgroundTasks, FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from Backend.app.model import Event
-from Backend.app.Game import Game
-from Backend.app.TimeControl import TimeControl
-from Backend.app.Signaling import Signaling
+from app.model import Event
+from app.Game import Game
+from app.TimeControl import TimeControl
+from app.Signaling import Signaling
 
 app = FastAPI()
 

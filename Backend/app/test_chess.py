@@ -5,9 +5,9 @@ import chess
 import pytest
 from fastapi.testclient import TestClient
 from fastapi.websockets import WebSocket
-from Backend.app.Game import Game
-from Backend.app.TimeControl import TimeControl
-from Backend.app.Signaling import Signaling
+from app.Game import Game
+from app.TimeControl import TimeControl
+from app.Signaling import Signaling
 
 class TestGame(unittest.TestCase):
     def setUp(self):

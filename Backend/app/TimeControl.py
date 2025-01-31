@@ -1,7 +1,7 @@
 import asyncio
 import time
 import threading
-from Backend.app.Game import Game
+from app.Game import Game
 
 class TimeControl:
     def __init__(self, total_time=600, increment=10,game = None, active_games = None):
