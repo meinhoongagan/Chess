@@ -8,7 +8,6 @@ import math
 # Get Stockfish path with extensive logging
 stockfish_path = os.getenv("STOCKFISH_PATH", "/app/backend/stockfish/stockfish-ubuntu-x86-64-avx2")
 
-
 # Add extensive logging
 print("Stockfish Configuration:")
 print(f"STOCKFISH_PATH: {stockfish_path}")
