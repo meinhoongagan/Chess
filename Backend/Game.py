@@ -1,11 +1,6 @@
 import chess
-import pydantic
 import chess.engine
-
-# Start Stockfish engine
-engine = chess.engine.SimpleEngine.popen_uci(
-    "/mnt/c/users/gagan/onedrive/desktop/chess/backend/stockfish-windows-x86-64-avx2/stockfish/stockfish-windows-x86-64-avx2.exe"
-)
+import math
 
 class Game:
     def __init__(self):
@@ -17,6 +12,11 @@ class Game:
         self.board = None
         self.status = None
         self.moves = None
+        self.mate_score = 9999
+        self.near_mate_threshold = 5.0
+        self.engine = chess.engine.SimpleEngine.popen_uci(
+            "/mnt/c/users/gagan/onedrive/desktop/chess/backend/stockfish-windows-x86-64-avx2/stockfish/stockfish-windows-x86-64-avx2.exe"
+        )
         self.flag = False
 
     def start(self, player1: str, player2: str):
@@ -34,7 +34,7 @@ class Game:
             uci_move = self.board.parse_san(move).uci()
             self.board.push_uci(uci_move)
             self.moves.append(move)
-            print(self.board)
+            # print(self.board)
         except ValueError:
             raise ValueError(f"Illegal move: {move}")
     
@@ -59,47 +59,91 @@ class Game:
         return self.status
     
     def get_moves(self):
-        return self.moves
-
-    def get_evaluation(self):
-        evaluation = engine.analyse(self.board, chess.engine.Limit(time=0.2))
-        score = evaluation['score'].relative.score(mate_score=10000)
-        return score / 100.0  
+        return self.moves 
 
     def suggest_move(self):
-        result = engine.play(self.board, chess.engine.Limit(time=0.5))
+        result = self.engine.play(self.board, chess.engine.Limit(time=0.5))
         return result.move.uci()
-
-    def analyze_position(self):
-        evaluation = self.get_evaluation()
-        best_move = self.suggest_move()
-        # winning_chances = self.get_winning_chances(evaluation)
-        return {"evaluation": evaluation, "best_move": best_move}
-
-    def get_winning_chances(self, evaluation):
-        if evaluation is 0:
-            return {"white": 50.0, "black": 50.0}
-        if(self.flag):
-            if evaluation >= 0:
-                white_chances = round(50 + evaluation, 2)
-                black_chances = round(100 - white_chances, 2)
-            else:
-                black_chances = round(50 + abs(evaluation), 2)
-                white_chances = round(100 - black_chances, 2)
-            self.flag = False
-        else:
-            if evaluation >= 0:
-                black_chances = round(50 + evaluation * 10, 2)
-                white_chances = round(100 - black_chances, 2)
-            else:
-                white_chances = round(50 + abs(evaluation) * 10, 2)
-                black_chances = round(100 - white_chances, 2)
-            self.flag = True
-        
-        return {"white": white_chances, "black": black_chances}
 
 
     def get_pv_moves(self):
-        analysis = engine.analyse(self.board, chess.engine.Limit(time=1.0)) 
+        analysis = self.engine.analyse(self.board, chess.engine.Limit(time=1.0)) 
         pv_moves = analysis.get("pv", [])
         return [move.uci() for move in pv_moves]
+    
+    def get_evaluation(self):
+        """Get evaluation from engine and handle mate scores"""
+        if self.board.is_checkmate():
+            return -self.mate_score if self.board.turn else self.mate_score
+            
+        analysis = self.engine.analyse(self.board, chess.engine.Limit(time=0.2))
+        score = analysis['score'].relative
+        
+        if score.is_mate():
+            # Handle mate scores
+            mate_in = score.mate()
+            return self.mate_score if mate_in > 0 else -self.mate_score
+            
+        return score.score(mate_score=10000) / 100.0
+
+    def sigmoid_scale(self, x):
+        """Apply sigmoid scaling to evaluation scores"""
+        scale_factor = 0.2
+        return 50 * (1 + math.tanh(scale_factor * x))
+
+    def get_winning_chances(self, evaluation):
+        """
+        Calculate winning chances using sigmoid scaling and proper mate handling.
+        
+        Args:
+            evaluation (float): Position evaluation score
+            
+        Returns:
+            dict: Winning chances for white and black as percentages
+        """
+        # Handle checkmate positions
+        if abs(evaluation) >= self.mate_score:
+            if evaluation > 0:
+                return {"white": 100.0, "black": 0.0}
+            else:
+                return {"white": 0.0, "black": 100.0}
+
+        # Handle drawn positions
+        if evaluation == 0:
+            return {"white": 50.0, "black": 50.0}
+
+        # Calculate winning chances using sigmoid scaling
+        if evaluation >= 0:
+            white_chances = round(self.sigmoid_scale(evaluation), 2)
+            black_chances = round(100 - white_chances, 2)
+        else:
+            black_chances = round(self.sigmoid_scale(abs(evaluation)), 2)
+            white_chances = round(100 - black_chances, 2)
+
+        # Handle near-mate positions
+        if abs(evaluation) >= self.near_mate_threshold:
+            if evaluation > 0:
+                white_chances = min(99.9, white_chances)
+                black_chances = 100 - white_chances
+            else:
+                black_chances = min(99.9, black_chances)
+                white_chances = 100 - black_chances
+
+        return {"white": white_chances, "black": black_chances}
+
+    def analyze_position(self):
+        """Analyze current position with evaluation and best move"""
+        evaluation = self.get_evaluation()
+        best_move = self.suggest_move()
+        winning_chances = self.get_winning_chances(evaluation)
+        
+        return {
+            "evaluation": evaluation,
+            "best_move": best_move,
+            "winning_chances": winning_chances
+        }
+
+    def __del__(self):
+        """Cleanup engine when object is destroyed"""
+        if hasattr(self, 'engine'):
+            self.engine.quit()

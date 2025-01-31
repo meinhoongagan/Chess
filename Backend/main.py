@@ -193,8 +193,8 @@ async def websocket_endpoint(
                             "event": "MOVE",
                             "data": {"move": move, "turn": game.current_turn},
                             "evaluation": evaluation,
-                            "analysis": analysis,
                             "winning_chance": winning_chance,
+                            "analysis": analysis,
                             "suggest": suggest,
                             "time": time_update
                             # "oppening": opening
@@ -202,10 +202,10 @@ async def websocket_endpoint(
 
                         await player1_socket.send_json({
                             **response
-                        })
+                                })
                         await player2_socket.send_json({
                             **response
-                        })
+                                })
 
                     else:
                         winner = game.current_turn

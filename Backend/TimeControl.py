@@ -72,9 +72,9 @@ class TimeControl:
                     self.timer_active = False  # Stop the timer
 
             self.last_move_time = current_time
-            print("Player 1 time:", self.player1_time)
-            print("Player 2 time:", self.player2_time)
-            print(message)
+            # print("Player 1 time:", self.player1_time)
+            # print("Player 2 time:", self.player2_time)
+            # print(message)
 
             if message:
                 self.active_games.pop(self.player1, None)

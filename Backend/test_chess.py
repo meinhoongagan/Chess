@@ -27,26 +27,103 @@ class TestGame(unittest.TestCase):
         self.assertTrue(self.game.isValidMove("e4"))
         self.game.move("e4")
         self.assertEqual(self.game.moves[-1], "e4")
+        
+        # Test multiple valid moves
+        self.game.move("e5")
+        self.game.move("Nf3")
+        self.assertEqual(len(self.game.moves), 3)
+        self.assertEqual(self.game.moves, ["e4", "e5", "Nf3"])
 
     def test_invalid_move(self):
-        # Test an invalid move
+        # Test various invalid moves
         with self.assertRaises(ValueError):
             self.game.move("e5")  # Black can't move first
+            
+        self.game.move("e4")
+        with self.assertRaises(ValueError):
+            self.game.move("e4")  # Can't move to occupied square
 
     def test_game_status_updates(self):
-        # Test checkmate scenario
-        moves = ["f3", "e5", "g4", "Qh4"]  # Fool's mate
+        # Test checkmate scenario (Fool's mate)
+        moves = ["f3", "e5", "g4", "Qh4"]
         for move in moves:
             self.game.move(move)
         self.game.update_status()
         self.assertEqual(self.game.get_status(), "checkmate")
+        
+        # Test stalemate scenario
+        self.game = Game()
+        self.game.start("player1", "player2")
+        # This is a known stalemate position
+        stalemate_moves = [
+            "e3", "a5", "Qh5", "Ra6", "Qxa5", "h5", "h4", "Rah6", 
+            "Qxc7", "f6", "Qxd7+", "Kf7", "Qxb7", "Qd3", "Qxb8", "Qh7", 
+            "Qxc8", "Kg6", "Qe6"
+        ]
+        for move in stalemate_moves:
+            try:
+                self.game.move(move)
+            except ValueError as e:
+                print(f"Failed move: {move}")
+                print(f"Board state: {self.game.board}")
+                raise e
+        self.game.update_status()
+        self.assertEqual(self.game.get_status(), "stalemate")
 
     @patch('chess.engine.SimpleEngine.analyse')
     def test_evaluation(self, mock_analyse):
-        mock_analyse.return_value = {'score': Mock(relative=Mock(score=lambda mate_score: 100))}
+        # Test normal position evaluation
+        mock_score = Mock()
+        mock_score.is_mate.return_value = False
+        mock_score.score.return_value = 100
+        mock_analyse.return_value = {'score': Mock(relative=mock_score)}
+        
         eval = self.game.get_evaluation()
         self.assertEqual(eval, 1.0)
+        
+        # Test mate position
+        mock_score.is_mate.return_value = True
+        mock_score.mate.return_value = 1
+        mock_analyse.return_value = {'score': Mock(relative=mock_score)}
+        
+        eval = self.game.get_evaluation()
+        self.assertEqual(eval, self.game.mate_score)
 
+@patch('chess.engine.SimpleEngine.analyse')
+def test_winning_chances(self, mock_analyse):
+    # Test equal position
+    chances = self.game.get_winning_chances(0)
+    self.assertEqual(chances, {"white": 50.0, "black": 50.0})
+    
+    # Test slight white advantage
+    chances = self.game.get_winning_chances(0.5)
+    white_chances = chances["white"]
+    black_chances = chances["black"]
+    self.assertTrue(white_chances > 50)
+    self.assertTrue(black_chances < 50)
+    self.assertAlmostEqual(white_chances + black_chances, 100)
+    
+    # Test strong white advantage
+    chances = self.game.get_winning_chances(3.0)
+    white_chances = chances["white"]
+    black_chances = chances["black"]
+    self.assertTrue(white_chances > black_chances)
+    self.assertAlmostEqual(white_chances + black_chances, 100)
+    
+    # Test black advantage
+    chances = self.game.get_winning_chances(-3.0)
+    white_chances = chances["white"]
+    black_chances = chances["black"]
+    self.assertTrue(black_chances > white_chances)
+    self.assertAlmostEqual(white_chances + black_chances, 100)
+    
+    # Test checkmate for white
+    chances = self.game.get_winning_chances(self.game.mate_score)
+    self.assertEqual(chances, {"white": 100.0, "black": 0.0})
+    
+    # Test checkmate for black
+    chances = self.game.get_winning_chances(-self.game.mate_score)
+    self.assertEqual(chances, {"white": 0.0, "black": 100.0})
 class TestTimeControl(unittest.TestCase):
     def setUp(self):
         self.game = Mock()
