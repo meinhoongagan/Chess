@@ -1,0 +1,8 @@
+version: '3'
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      STOCKFISH_PATH: "/app/backend/stockfish/stockfish-ubuntu-x86-64-avx2"
