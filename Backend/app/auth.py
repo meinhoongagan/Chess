@@ -69,7 +69,7 @@ async def login(user: User):
     if not hashed_password or not verify_password(user.password, hashed_password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     access_token = create_access_token(data={"sub": user.username}, expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": "bearer" , "user": user.username}
 
 @router.get("/protected")
 async def protected_route(token: str = Depends(decode_access_token)):
