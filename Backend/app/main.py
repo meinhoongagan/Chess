@@ -6,8 +6,11 @@ from app.model import Event
 from app.Game import Game
 from app.TimeControl import TimeControl
 from app.Signaling import Signaling
+from app.auth import router as auth_router
 
 app = FastAPI()
+
+app.include_router(auth_router)
 
 app.add_middleware(
     CORSMiddleware,
