@@ -3,6 +3,7 @@ import { create  } from "zustand";
 interface GlobalState {
     socket: WebSocket | null;
     init_game: (message: any) => void;
+    make_move: (message: any) => void;
 }
 
 export const useGlobalState = create<GlobalState>((set,get) => ({
@@ -48,4 +49,23 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
             set({ socket });
         }
     },
+
+    make_move : (message: any) => {
+        let socket = get().socket;
+        if (socket) {
+            try {
+                socket.send(
+                    JSON.stringify({
+                        event: "MOVE",
+                        data: {
+                            move: message.move
+                        }
+                    })
+                );
+                console.log("📡 Sending MOVE...");
+            } catch (e) {
+                console.error("🚨 Error sending message:", e);
+            }
+        }
+    }
 }));

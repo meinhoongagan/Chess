@@ -2,7 +2,7 @@ import { Square, PieceSymbol, Color } from "chess.js";
 
 interface ChessBoardProps {
   board: ({ square: Square; type: PieceSymbol; color: Color } | null)[][];
-  onSquareClick?: (square: string) => void;
+  onSquareClick?: (square: string, piece: { square: Square; type: PieceSymbol; color: Color } | null) => void;
 }
 
 export const ChessBoard = ({ board , onSquareClick }: ChessBoardProps) => {
@@ -14,13 +14,14 @@ export const ChessBoard = ({ board , onSquareClick }: ChessBoardProps) => {
           const isDark = (i + j) % 2 === 1;
           return (
             <div
+              id={squareName}
               key={`${i}-${j}`}
               className={`flex items-center justify-center w-16 h-16 ${
                 isDark ? "bg-green-800" : "bg-green-300"
               }`}
               onClick={() => {
                 if(onSquareClick)
-                    onSquareClick(squareName);
+                    onSquareClick(squareName, square);
               }
             }
             >
