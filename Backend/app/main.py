@@ -211,6 +211,14 @@ async def websocket_endpoint(
                                 })
 
                     else:
+                        await player1_socket.send_json({
+                            "event": "MOVE",
+                            "data": {"move": move, "turn": game.current_turn}
+                        })
+                        await player2_socket.send_json({
+                            "event": "MOVE",
+                            "data": {"move": move, "turn": game.current_turn}
+                        })
                         winner = game.current_turn
                         await player1_socket.send_json({
                             "event": "GAME_OVER",
