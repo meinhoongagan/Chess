@@ -7,19 +7,38 @@ import { Matching } from './components/Matching'
 import { Game } from './pages/Game'
 
 
+
 const App = () => {
 
   const navigate = useNavigate();
 
-  const { socket } = useGlobalState(state => state)
+  const { socket  } = useGlobalState(state => state)
   useEffect(() => {
     if (!socket) return;
+
+    console.log(socket);
+    
+    console.log("ready State" ,socket.readyState);
+    
+
+    if (socket.readyState !== WebSocket.OPEN) {
+      console.log("WebSocket connection is not open");
+    }
+
+    if (socket.readyState !== WebSocket.CLOSED) {
+      console.log("WebSocket connection is not closed");
+    }
 
     const handleMessage = (event: any) => {
       const data = JSON.parse(event.data);
       console.log("📩 Received message:", event.data);
+      
       if (data.event ==="GAME_STARTED"){
+          sessionStorage.setItem("turn",data.data.turn);
           navigate("/game");
+      }
+      if(data.event === "MOVE"){
+        sessionStorage.setItem("turn",data.data.turn);
       }
     };
 

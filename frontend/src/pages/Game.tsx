@@ -1,5 +1,5 @@
 import { Chess, Color, PieceSymbol, Square } from "chess.js";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ChessBoard } from "../components/ChessBoard";
 import { useGlobalState } from "../GlobalState/Store";
 
@@ -7,7 +7,19 @@ export const Game = () => {
     const [chess] = useState(new Chess());
     const [board, setBoard] = useState(chess.board());
     const [moveFrom, setMoveFrom] = useState<string | null>(null);
-    const { make_move } = useGlobalState((state) => state);
+    const { make_move , socket } = useGlobalState((state) => state);
+
+    useEffect(() => {
+        if(!socket) return;
+        socket.onmessage = (event) => {
+            console.log("📩 Received message From Game Component", event.data);
+            const data = JSON.parse(event.data);
+            if(data.event === "MOVE"){
+                chess.move(data.data.move);
+                setBoard(chess.board());
+            }
+    }
+}, [socket]);
 
     // Handle square click (either select piece or move it)
     const handleSquareClick = (square: string, piece: { square: Square; type: PieceSymbol; color: Color } | null) => {
@@ -17,6 +29,7 @@ export const Game = () => {
                 const move = chess.move({ from: moveFrom, to: square, promotion: "q" });
     
                 if (move) {
+
                     setBoard(chess.board()); // Update board state
                     setMoveFrom(null);
                     const squareElement = document.getElementById(moveFrom);
@@ -49,10 +62,8 @@ export const Game = () => {
 
                 //highlight the square
                 const squareElement = document.getElementById(square);
-                console.log("squareElement",squareElement);
                 
                 if (squareElement) {            
-                    console.log("squareElement",squareElement.classList);
                     squareElement.style.removeProperty("border");
 
                     // Apply new border highlight
