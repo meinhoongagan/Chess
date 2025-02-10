@@ -86,7 +86,7 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
         }
     
         try {
-            console.log("Sending MOVE...", message);
+
             
             socket.send(
                 JSON.stringify({

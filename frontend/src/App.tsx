@@ -34,10 +34,12 @@ const App = () => {
       console.log("📩 Received message:", event.data);
       
       if (data.event ==="GAME_STARTED"){
-          sessionStorage.setItem("turn",data.data.turn);
+
+          sessionStorage.setItem("turn",data.turn);
           navigate("/game");
       }
       if(data.event === "MOVE"){
+        console.log("Move turn",data.data.turn);
         sessionStorage.setItem("turn",data.data.turn);
       }
     };
