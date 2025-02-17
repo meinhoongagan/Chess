@@ -1,5 +1,4 @@
 import { Routes, Route  , useNavigate } from 'react-router-dom'
-import  GamesocketProvider  from './context/GameContextProvider'
 import { Home } from './pages/Home'
 import { useGlobalState } from './GlobalState/Store'
 import { useEffect } from 'react'
@@ -36,6 +35,8 @@ const App = () => {
       if (data.event ==="GAME_STARTED"){
 
           sessionStorage.setItem("turn",data.turn);
+          sessionStorage.setItem("white",data.turn);
+          sessionStorage.setItem("opponent",data.data.opponent);
           navigate("/game");
       }
       if(data.event === "MOVE"){
@@ -53,13 +54,13 @@ const App = () => {
   }, [socket]);
 
   return (
-      <GamesocketProvider>
+      // <GamesocketProvider>
         <Routes>
           <Route path="/" element={<Home/>}/>
           <Route path="/matching" element={<Matching/>}/>
-          <Route path="/game" element={<Game/>}/>
+          <Route path="/game" element={<Game totalTime={0} increment={0}/>}/>
         </Routes>
-      </GamesocketProvider>
+      // </GamesocketProvider>
   )
 }
 

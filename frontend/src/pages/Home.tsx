@@ -8,7 +8,7 @@ export const Home = () => {
 
   const [board] = useState(new Chess().board());
   const navigate = useNavigate();
-  const { init_game } = useGlobalState((state) => state);
+  const { init_game, setTime } = useGlobalState((state) => state);
   const [totalTime, setTotalTime] = useState(300);
   const [increment, setIncrement] = useState(5);
 
@@ -17,7 +17,11 @@ export const Home = () => {
       {/* Chess Board */}
       <div className="flex-1 flex justify-center items-center">
         <div className="p-6 bg-[#0f172a] shadow-lg rounded-2xl border border-gray-600 animate-fade-in">
-          <ChessBoard board={board} />
+          <ChessBoard 
+            board={board} 
+            activePlayer="white"
+            totalTime={totalTime}
+          />
         </div>
       </div>
 
@@ -51,10 +55,10 @@ export const Home = () => {
           id="increment"
           onChange={(e) => setIncrement(parseInt(e.target.value))}
         >
-          <option value="5">1 Sec</option>
-          <option value="10">3 Sec</option>
-          <option value="15">5 Sec</option>
-          <option value="30">10 Sec</option>
+          <option value="1">1 Sec</option>
+          <option value="3">3 Sec</option>
+          <option value="5">5 Sec</option>
+          <option value="10">10 Sec</option>
         </select>
 
         {/* Join Game Button */}
@@ -62,7 +66,15 @@ export const Home = () => {
           className="w-full text-white font-bold text-lg p-3 mt-6 bg-gradient-to-r from-green-700 to-green-500 rounded-lg shadow-md hover:scale-105 transition-all duration-200"
           onClick={() => {
             init_game({ totalTime, increment });
-            navigate("/matching");
+            setTime(totalTime);
+            navigate("/matching",
+              {
+                state: {
+                  totalTime,
+                  increment
+                }
+              }
+            );
           }}
         >
           🚀 Join Game

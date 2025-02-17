@@ -2,14 +2,18 @@ import { create  } from "zustand";
 
 interface GlobalState {
     socket: WebSocket | null;
+    time: number | null;
+    activePlayer: string | null;
     init_game: (message: any) => void;
     make_move: (message: any) => void;
+    setTime: (time: number) => void;
 }
 
 
 export const useGlobalState = create<GlobalState>((set,get) => ({
     socket: null,
-    // board: ,
+    time: null,
+    activePlayer:null,
     init_game: async (message: any) => { 
         let socket = get().socket;
     
@@ -101,5 +105,13 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
             console.error("🚨 Error sending message:", e);
         }
     },
+    setTime : (time: number) => {
+        if (time === 0) {
+            set({ time: null });
+        } else {
+            set({ time: time });
+        }
+    }
+
     
 }));
