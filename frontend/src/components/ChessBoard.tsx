@@ -74,7 +74,8 @@ export const ChessBoard = ({
         playerColor: String | null; 
         isActive?: boolean; 
     }) => {
-        if (!player || !showTimers) return null;
+        if (!player || !showTimers) return null;  
+                
     
         const timeValue = times[player] || time;
         const timerBgColor = playerColor === "w" ? "bg-white text-black" : "bg-black text-white";
@@ -105,7 +106,7 @@ export const ChessBoard = ({
         player: username,
         playerColor: shouldReverseBoard ? "w" : "b",
         username: "Your",
-        isActive: activePlayer === username
+        isActive: true
     };
 
     return (

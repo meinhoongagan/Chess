@@ -3,7 +3,6 @@ import { useEffect, useState, useRef } from "react";
 import { ChessBoard } from "../components/ChessBoard";
 import { useGlobalState } from "../GlobalState/Store";
 import WinnerPopup from "../components/WinnerPopup";
-import { log } from "console";
 
 interface GameProps {
     totalTime: number;
@@ -18,11 +17,18 @@ export const Game = ({ totalTime }: GameProps) => {
     const [chess] = useState(new Chess());
     const [board, setBoard] = useState(chess.board());
     const [moveFrom, setMoveFrom] = useState<string | null>(null);
-    const { make_move, socket } = useGlobalState((state) => state);
+    const { make_move, socket , time } = useGlobalState((state) => state);
     const [winner, setWinner] = useState<string | null>(null);
-    const [times, setTimes] = useState<TimeState>({});
     const [activePlayer, setActivePlayer] = useState<string>();
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const initialTimes: TimeState = {};
+
+    // const username = sessionStorage.getItem("username");
+    // const opponent = sessionStorage.getItem("opponent");
+    // if (username) initialTimes[username] = time?? 0;
+    // if (opponent) initialTimes[opponent] = time?? 0;
+    
+    const [times, setTimes] = useState<TimeState>(initialTimes);
 
     // Initialize times and active player when component mounts
     useEffect(() => {
@@ -31,16 +37,28 @@ export const Game = ({ totalTime }: GameProps) => {
         const initialTurn = sessionStorage.getItem("turn");
         
         if (username && opponent) {
-            setTimes({
-                [username]: totalTime,
-                [opponent]: totalTime
-            });
+            if (totalTime!=0){
+                setTimes({
+                    [username]: totalTime ,
+                    [opponent]: totalTime
+                });
+            }
+            else {
+                setTimes({
+                    [username]: time?? 0 ,
+                    [opponent]: time?? 0
+                });
+            }
             setActivePlayer(initialTurn?? sessionStorage.getItem("white") ?? username);
         }
     }, [totalTime]);
 
     // Timer effect
     useEffect(() => {
+        console.log(time);
+        
+        console.log(activePlayer, times);
+        
         if (!activePlayer || !times[activePlayer]) return;
 
         if (timerRef.current) {
