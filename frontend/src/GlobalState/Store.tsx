@@ -7,6 +7,9 @@ interface GlobalState {
     init_game: (message: any) => void;
     make_move: (message: any) => void;
     setTime: (time: number) => void;
+    send_offer: (target: string , offer: any) => void;
+    send_answer: (target: string , answer: any) => void;
+    send_ice_candidate: (target: string , candidate: any) => void;
 }
 
 
@@ -111,7 +114,93 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
         } else {
             set({ time: time });
         }
-    }
+    },
+
+    send_offer: async (target: string, offer:any) => {
+        let socket = get().socket;
+        if (!socket) {
+            console.error("❌ WebSocket instance is missing.");
+            return;
+        }
+        if (socket.readyState === WebSocket.CONNECTING) {
+            console.log("⏳ WebSocket is still connecting, waiting...");
+            await new Promise<void>((resolve) => {
+                const checkInterval = setInterval(() => {
+                    if (socket.readyState === WebSocket.OPEN) {
+                        clearInterval(checkInterval);
+                        resolve();
+                    }
+                }, 100); // Check every 100ms
+            });
+        }
+        
+        if (socket.readyState === WebSocket.OPEN) {
+            try{
+                socket.send(
+                    JSON.stringify({
+                        event: "OFFER",
+                        data: {
+                            target: target,
+                            offer: offer
+                        }
+                    })
+                )
+                console.log("📩 Send Offer");
+            }catch(e){
+                console.error("🚨 Error sending message:", e);
+            }
+        }
+        if (socket.readyState !== WebSocket.OPEN) {
+            console.error("❌ WebSocket is not open. Unable to send MOVE.");
+            return;
+        }
+    },
+    send_answer: async (target: string, answer:any) => {
+        let socket = get().socket;
+        if (!socket) {
+            console.error("❌ WebSocket instance is missing.");
+            return;
+        }
+        if (socket.readyState === WebSocket.OPEN) {
+            socket.send(
+                JSON.stringify({
+                    event: "ANSWER",
+                    data: {
+                        target: target,
+                        answer: answer
+                    }
+                })
+            )
+        }
+    
+        if (socket.readyState !== WebSocket.OPEN) {
+            console.error("❌ WebSocket is not open. Unable to send MOVE.");
+            return;
+        }
+    },
+    send_ice_candidate: async (target: string, candidate:any) => {
+        let socket = get().socket;
+        if (!socket) {
+            console.error("❌ WebSocket instance is missing.");
+            return;
+        }
+        if (socket.readyState === WebSocket.OPEN) {
+            socket.send(
+                JSON.stringify({
+                    event: "ICE_CANDIDATE",
+                    data: {
+                        target: target,
+                        candidate: candidate
+                    }
+                })
+            )
+        }
+    
+        if (socket.readyState !== WebSocket.OPEN) {
+            console.error("❌ WebSocket is not open. Unable to send MOVE.");
+            return;
+        }
+    },
 
     
 }));
