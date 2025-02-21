@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useGlobalState } from "../GlobalState/Store";
 import { ChessBoard } from "../components/ChessBoard";
 import { Chess } from "chess.js";
@@ -65,6 +65,10 @@ export const Home = () => {
         <button
           className="w-full text-white font-bold text-lg p-3 mt-6 bg-gradient-to-r from-green-700 to-green-500 rounded-lg shadow-md hover:scale-105 transition-all duration-200"
           onClick={() => {
+            if (!sessionStorage.getItem("token")) {
+              navigate("/auth");
+              return;
+            }
             init_game({ totalTime, increment });
             setTime(totalTime);
             navigate("/matching",

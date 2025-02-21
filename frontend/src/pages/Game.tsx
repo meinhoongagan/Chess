@@ -3,6 +3,7 @@ import { useEffect, useState, useRef } from "react";
 import { ChessBoard } from "../components/ChessBoard";
 import { useGlobalState } from "../GlobalState/Store";
 import WinnerPopup from "../components/WinnerPopup";
+import { useNavigate } from "react-router-dom";
 interface GameProps {
     totalTime: number;
     increment: number;
@@ -13,6 +14,7 @@ interface TimeState {
 }
 
 export const Game = ({ totalTime, increment }: GameProps) => {
+    const navigate = useNavigate();
     const [chess] = useState(new Chess());
     const [board, setBoard] = useState(chess.board());
     const [moveFrom, setMoveFrom] = useState<string | null>(null);
@@ -166,12 +168,12 @@ export const Game = ({ totalTime, increment }: GameProps) => {
 
     // Consolidated WebSocket message handler
     useEffect(() => {
-        if (!socket || !peerConnection) {
-            console.log("❌ WebSocket or PeerConnection not established, socket:", !!socket, "peerConnection:", !!peerConnection);
+        if (!socket) {
+            console.log("❌ WebSocket not established");
             return;
         }
 
-        console.log("✅ Setting up WebSocket message handler");
+        console.log("✅ Setting up consolidated WebSocket message handler");
         
         socket.onmessage = async (event) => {
             try {
@@ -179,104 +181,110 @@ export const Game = ({ totalTime, increment }: GameProps) => {
                 console.log("📩 Received WebSocket message:", data);
 
                 switch (data.event) {
+                    case "MOVE":
+                        console.log("♟️ Processing MOVE");
+                        try {
+                            const newTurn = data.data.turn;
+                            sessionStorage.setItem("turn", newTurn);
+                            setActivePlayer(newTurn);
+
+                            // Add increment time after move if specified
+                            if (increment > 0) {
+                                setTimes(prevTimes => ({
+                                    ...prevTimes,
+                                    [data.data.player]: prevTimes[data.data.player] + increment
+                                }));
+                            }
+
+                            chess.move(data.data.move);
+                            console.log("👉 Move turn:", data.data.turn);
+                            console.log("🎮 Updated board:", chess.board());
+                            
+                            setBoard(chess.board());
+                        } catch (error) {
+                            console.error("❌ Error processing move:", error);
+                        }
+                        break;
+
+                    case "GAME_OVER":
+                        console.log("🏁 Processing GAME_OVER");
+                        setWinner(data.data.winner);
+                        if (timerRef.current) {
+                            clearInterval(timerRef.current);
+                        }
+                        break;
+
                     case "OFFER":
+                        if (!peerConnection) {
+                            console.error("❌ No peer connection available for offer");
+                            break;
+                        }
                         console.log("📡 Processing OFFER");
                         try {
-                            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.data.offer));
-                            console.log("📍 Remote description (offer) set");
-                            
+                            await peerConnection.setRemoteDescription(
+                                new RTCSessionDescription(data.data.offer)
+                            );
                             const answer = await peerConnection.createAnswer();
-                            console.log("📝 Answer created");
-                            
                             await peerConnection.setLocalDescription(answer);
-                            console.log("📍 Local description (answer) set");
-                            
                             send_answer(sessionStorage.getItem("opponent") ?? "", answer);
-                            console.log("📤 Answer sent to opponent");
                         } catch (error) {
                             console.error("❌ Error processing offer:", error);
                         }
                         break;
 
                     case "ANSWER":
+                        if (!peerConnection) {
+                            console.error("❌ No peer connection available for answer");
+                            break;
+                        }
                         console.log("📡 Processing ANSWER");
                         try {
                             if (peerConnection.signalingState === "stable") {
                                 console.warn("⚠️ Skipping setRemoteDescription: Already in stable state");
-                                return;
+                                break;
                             }
-                            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.data.answer));
-                            console.log("📍 Remote description (answer) set");
+                            await peerConnection.setRemoteDescription(
+                                new RTCSessionDescription(data.data.answer)
+                            );
                         } catch (error) {
                             console.error("❌ Error processing answer:", error);
                         }
                         break;
-                    
+
                     case "ICE_CANDIDATE":
-                        console.log("📩 Received ICE Candidate", data.data.candidate);
+                        if (!peerConnection) {
+                            console.error("❌ No peer connection available for ICE candidate");
+                            break;
+                        }
+                        console.log("❄️ Processing ICE_CANDIDATE");
                         if (data.data.candidate) {
                             try {
-                                await peerConnection.addIceCandidate(new RTCIceCandidate(data.data.candidate));
-                                console.log("✅ ICE Candidate successfully added");
+                                await peerConnection.addIceCandidate(
+                                    new RTCIceCandidate(data.data.candidate)
+                                );
                             } catch (error) {
                                 console.error("❌ Error adding ICE Candidate:", error);
                             }
                         }
                         break;
+
+                    default:
+                        console.log("⚠️ Unhandled event type:", data.event);
                 }
             } catch (error) {
                 console.error("❌ Error processing message:", error);
-                console.log("Raw message:", event.data);
+                console.log("📄 Raw message:", event.data);
             }
         };
 
         return () => {
             socket.onmessage = null;
-            console.log("🔄 Cleaned up WebSocket message handler");
-        };
-    }, [socket, peerConnection]);
-
-    useEffect(() => {
-        if (!socket) return;
-
-        socket.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                
-                if (data.event === "MOVE") {
-                    const newTurn = data.data.turn;
-                    sessionStorage.setItem("turn", newTurn);
-                    setActivePlayer(newTurn);
-
-                    // Add increment time after move if specified
-                    if (increment > 0) {
-                        setTimes(prevTimes => ({
-                            ...prevTimes,
-                            [data.data.player]: prevTimes[data.data.player] + increment
-                        }));
-                    }
-
-                    chess.move(data.data.move);
-                    setBoard(chess.board());
-                }
-                
-                if (data.event === "GAME_OVER") {
-                    setWinner(data.data.winner);
-                    if (timerRef.current) {
-                        clearInterval(timerRef.current);
-                    }
-                }
-            } catch (e) {
-                console.error("Error processing message:", e);
-            }
-        };
-
-        return () => {
             if (timerRef.current) {
                 clearInterval(timerRef.current);
             }
+            console.log("🔄 Cleaned up WebSocket message handler");
         };
-    }, [socket, chess, increment]);
+    }, [socket, peerConnection, chess, increment]);
 
     // Initialize times and active player when component mounts
     useEffect(() => {
@@ -391,9 +399,12 @@ export const Game = ({ totalTime, increment }: GameProps) => {
         }
     };
     const toggleLocalAudio = () => {
-        if (localAudioRef.current) {
-            localAudioRef.current.muted = !isMuted;
-            setIsMuted(!isMuted);
+        if (localStream) {
+            const audioTrack = localStream.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.enabled = !audioTrack.enabled;
+                setIsMuted(!audioTrack.enabled);
+            }
         }
     };
 
@@ -407,7 +418,10 @@ export const Game = ({ totalTime, increment }: GameProps) => {
             >
                 {isMuted ? "Unmute" : "Mute"} Mic
         </button>
-            {winner && <WinnerPopup winner={winner} onClose={() => setWinner(null)} />}
+            {winner && <WinnerPopup winner={winner} onClose={() => {
+                setWinner(null)
+                navigate("/")
+            }} />}
             <div className="grid col-span-3 justify-center items-center">
                 <ChessBoard 
                     board={board} 

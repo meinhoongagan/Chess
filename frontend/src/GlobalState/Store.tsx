@@ -1,4 +1,5 @@
 import { create  } from "zustand";
+import { useNavigate } from "react-router-dom";
 
 interface GlobalState {
     socket: WebSocket | null;
@@ -59,7 +60,10 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
             };
     
             socket.onclose = () => {
+                const navigate = useNavigate();
+                navigate("/")
                 console.log("🔌 WebSocket closed");
+                
             };
     
             set({ socket });

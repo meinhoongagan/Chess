@@ -4,6 +4,7 @@ import { useGlobalState } from './GlobalState/Store'
 import { useEffect } from 'react'
 import { Matching } from './components/Matching'
 import { Game } from './pages/Game'
+import  Auth   from './components/Auth'
 
 
 
@@ -59,6 +60,7 @@ const App = () => {
           <Route path="/" element={<Home/>}/>
           <Route path="/matching" element={<Matching/>}/>
           <Route path="/game" element={<Game totalTime={0} increment={0}/>}/>
+          <Route path="/auth" element={<Auth/>}/>
         </Routes>
       // </GamesocketProvider>
   )
