@@ -26,109 +26,152 @@ export const Game = ({ totalTime, increment }: GameProps) => {
     const [opponent, setOpponent] = useState<string | null>(null);
     const [white, setWhite] = useState<string | null>(null);
     const [peerConnection,setPeerConnection] = useState<RTCPeerConnection>();
+    const [localStream, setLocalStream] = useState<MediaStream>();
+    const localAudioRef = useRef<HTMLAudioElement>(null);
+    const remoteAudioRef = useRef<HTMLAudioElement>(null);
+    const [isMuted, setIsMuted] = useState(false);
 
     useEffect(() => {
         setUsername(sessionStorage.getItem("username"));
         setOpponent(sessionStorage.getItem("opponent"));
         setWhite(sessionStorage.getItem("white"));
     }, []);
+
+    useEffect(() => {
+        const setupWebRTC = async () => {
+            try {
+                // 1. Create RTCPeerConnection with STUN servers
+                const pc = new RTCPeerConnection({
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' }
+                    ],
+                    iceCandidatePoolSize: 10
+                });
+                
+                console.log("🔄 Created new RTCPeerConnection");
+                
+                // 2. Set up connection state monitoring
+                pc.onconnectionstatechange = () => {
+                    console.log("📡 Connection State:", pc.connectionState);
+                };
     
-    useEffect(() => {
-        if (socket) {
-            console.log("✅ WebSocket connection established:", socket);
-            socket.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                console.log("📩 Received message:", data);
-            };
-        } else {
-            console.log("❌ WebSocket connection not established.");
-        }
-    }, [socket, peerConnection]);
-
-    useEffect(() => {
-        // Setup RTCPeerConnection for both players
-        const pc = new RTCPeerConnection();
-        console.log("🔄 Created new RTCPeerConnection");
-        
-        pc.onconnectionstatechange = () => {
-            console.log("📡 Connection State:", pc.connectionState);
-        };
-
-        pc.oniceconnectionstatechange = () => {
-            console.log("❄️ ICE Connection State:", pc.iceConnectionState);
-        };
-
-        pc.onicecandidate = (event) => {
-            if (event.candidate) {
-                console.log("❄️ New ICE candidate:", event.candidate);
-                send_ice_candidate(sessionStorage.getItem("opponent") ?? "", event.candidate);
+                pc.oniceconnectionstatechange = () => {
+                    console.log("❄️ ICE Connection State:", pc.iceConnectionState);
+                };
+    
+                // 3. Handle ICE candidates
+                pc.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        console.log("❄️ New ICE candidate:", {
+                            sdpMid: event.candidate.sdpMid,
+                            sdpMLineIndex: event.candidate.sdpMLineIndex,
+                            candidate: event.candidate.candidate
+                        });
+                        
+                        const opponent = sessionStorage.getItem("opponent");
+                        if (!opponent) {
+                            console.error("❌ No opponent found in sessionStorage");
+                            return;
+                        }
+                        
+                        try {
+                            send_ice_candidate(opponent, event.candidate);
+                            console.log("📤 Successfully sent ICE candidate to:", opponent);
+                        } catch (error) {
+                            console.error("❌ Error sending ICE candidate:", error);
+                        }
+                    } else {
+                        console.log("✅ ICE Candidate gathering complete");
+                    }
+                };
+    
+                // 4. Get local audio stream
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+                
+                console.log("🎤 Audio stream obtained");
+                
+                // 5. Set up local audio preview
+                if (localAudioRef.current) {
+                    localAudioRef.current.srcObject = stream;
+                    localAudioRef.current.muted = true; // Mute local audio preview
+                }
+    
+                // 6. Add tracks to peer connection
+                stream.getTracks().forEach(track => {
+                    pc.addTrack(track, stream);
+                    console.log("🎵 Added local audio track to peer connection");
+                });
+    
+                // 7. Handle remote audio stream
+                pc.ontrack = (event) => {
+                    console.log("🔊 Received remote audio track");
+                    if (remoteAudioRef.current) {
+                        remoteAudioRef.current.srcObject = event.streams[0];
+                    }
+                };
+    
+                // 8. Store peer connection and stream
+                setPeerConnection(pc);
+                setLocalStream(stream);
+    
+                // 9. Create offer if white player
+                if (sessionStorage.getItem("white") === sessionStorage.getItem("username")) {
+                    try {
+                        console.log("📝 Starting offer creation...");
+                        const offer = await pc.createOffer({
+                            offerToReceiveAudio: true,
+                            iceRestart: true
+                        });
+                        console.log("📄 Offer created:", offer);
+    
+                        await pc.setLocalDescription(offer);
+                        console.log("📍 Local description set");
+    
+                        const opponent = sessionStorage.getItem("opponent");
+                        if (!opponent) {
+                            throw new Error("No opponent found in sessionStorage");
+                        }
+    
+                        send_offer(opponent, offer);
+                        console.log("📨 Offer sent to opponent:", opponent);
+                    } catch (error) {
+                        console.error("❌ Error in offer creation:", error);
+                    }
+                }
+    
+            } catch (error) {
+                console.error("❌ Error in WebRTC setup:", error);
             }
         };
-
-        setPeerConnection(pc);
-
-        // Create offer only if white player
-        if (sessionStorage.getItem("white") === sessionStorage.getItem("username")) {
-            const createOffer = async () => {
-                try {
-                    console.log("📝 Creating offer...");
-                    const offer = await pc.createOffer();
-                    console.log("📤 Offer created:", offer);
     
-                    await pc.setLocalDescription(offer);
-                    console.log("📍 Local description set");
+        setupWebRTC();
     
-                    send_offer(sessionStorage.getItem("opponent") ?? "", offer);
-                    console.log("📨 Offer sent to opponent");
-                } catch (error) {
-                    console.error("❌ Error in offer creation:", error);
-                }
-            };
-            createOffer();
-        }
-
+        // Cleanup function
         return () => {
-            pc.close();
+            localStream?.getTracks().forEach(track => {
+                track.stop();
+                console.log("🛑 Stopped audio track");
+            });
+            peerConnection?.close();
             console.log("🔌 Peer connection closed");
         };
-    }, []); 
+    }, []); // Empty dependency array - run once on moun 
 
     // Consolidated WebSocket message handler
     useEffect(() => {
         if (!socket || !peerConnection) {
-            console.log("❌ WebSocket or PeerConnection not established");
+            console.log("❌ WebSocket or PeerConnection not established, socket:", !!socket, "peerConnection:", !!peerConnection);
             return;
         }
 
-        navigator.mediaDevices.getUserMedia({ audio: true })
-        .then((stream)=>{
-            console.log("🎤 Audio stream obtained");
-            stream.getTracks().forEach((track) => {
-                peerConnection.addTrack(track, stream);
-            });
-
-            // 🔹 When a remote track is received, play the audio
-            peerConnection.ontrack = (event) => {
-                console.log("🔊 Remote audio track received");
-                const audioElement = new Audio();
-                audioElement.srcObject = event.streams[0];
-                audioElement.autoplay = true;
-                document.body.appendChild(audioElement); // Play the received audio
-            };
-
-        }).catch((error) => {
-            console.error("❌ Error accessing microphone:", error);
-        });
-
         console.log("✅ Setting up WebSocket message handler");
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                console.log("🧊 ICE Candidate:", event.candidate);
-                socket.send(JSON.stringify({ event: "ICE_CANDIDATE", data: { candidate: event.candidate } }));
-            } else {
-                console.log("✅ ICE Candidate gathering complete");
-            }
-        };
         
         socket.onmessage = async (event) => {
             try {
@@ -140,13 +183,21 @@ export const Game = ({ totalTime, increment }: GameProps) => {
                         console.log("📡 Processing OFFER");
                         try {
                             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.data.offer));
+                            console.log("📍 Remote description (offer) set");
+                            
                             const answer = await peerConnection.createAnswer();
+                            console.log("📝 Answer created");
+                            
                             await peerConnection.setLocalDescription(answer);
+                            console.log("📍 Local description (answer) set");
+                            
                             send_answer(sessionStorage.getItem("opponent") ?? "", answer);
+                            console.log("📤 Answer sent to opponent");
                         } catch (error) {
                             console.error("❌ Error processing offer:", error);
                         }
                         break;
+
                     case "ANSWER":
                         console.log("📡 Processing ANSWER");
                         try {
@@ -155,6 +206,7 @@ export const Game = ({ totalTime, increment }: GameProps) => {
                                 return;
                             }
                             await peerConnection.setRemoteDescription(new RTCSessionDescription(data.data.answer));
+                            console.log("📍 Remote description (answer) set");
                         } catch (error) {
                             console.error("❌ Error processing answer:", error);
                         }
@@ -165,16 +217,13 @@ export const Game = ({ totalTime, increment }: GameProps) => {
                         if (data.data.candidate) {
                             try {
                                 await peerConnection.addIceCandidate(new RTCIceCandidate(data.data.candidate));
-                                console.log("✅ ICE Candidate added");
+                                console.log("✅ ICE Candidate successfully added");
                             } catch (error) {
                                 console.error("❌ Error adding ICE Candidate:", error);
                             }
                         }
                         break;
-                    default:
-                        console.log("⚠️ Unhandled message type:", data.event);
                 }
-                
             } catch (error) {
                 console.error("❌ Error processing message:", error);
                 console.log("Raw message:", event.data);
@@ -185,7 +234,7 @@ export const Game = ({ totalTime, increment }: GameProps) => {
             socket.onmessage = null;
             console.log("🔄 Cleaned up WebSocket message handler");
         };
-    }, [socket, peerConnection, chess, increment, white, username]);
+    }, [socket, peerConnection]);
 
     useEffect(() => {
         if (!socket) return;
@@ -341,9 +390,23 @@ export const Game = ({ totalTime, increment }: GameProps) => {
             }
         }
     };
+    const toggleLocalAudio = () => {
+        if (localAudioRef.current) {
+            localAudioRef.current.muted = !isMuted;
+            setIsMuted(!isMuted);
+        }
+    };
 
     return (
         <div className="grid grid-cols-5 h-screen justify-center items-center bg-gradient-to-br from-[#0f172a] via-[#1e3a8a] to-[#581c87]">
+        <audio ref={localAudioRef} autoPlay playsInline />
+        <audio ref={remoteAudioRef} autoPlay playsInline />
+        <button 
+                onClick={toggleLocalAudio} 
+                className="absolute top-4 left-4 bg-blue-500 text-white p-2 rounded"
+            >
+                {isMuted ? "Unmute" : "Mute"} Mic
+        </button>
             {winner && <WinnerPopup winner={winner} onClose={() => setWinner(null)} />}
             <div className="grid col-span-3 justify-center items-center">
                 <ChessBoard 
