@@ -4,9 +4,16 @@ import { ChessBoard } from "../components/ChessBoard";
 import { useGlobalState } from "../GlobalState/Store";
 import WinnerPopup from "../components/WinnerPopup";
 import { useNavigate } from "react-router-dom";
+import GameAnalysis from "../components/GameAnalysis";
 interface GameProps {
     totalTime: number;
     increment: number;
+}
+
+interface GameState {
+    moveHistory: { san: string; evaluation: number }[];
+    currentEvaluation: number;
+    winningChances: { white: number; black: number };
 }
 
 interface TimeState {
@@ -32,6 +39,12 @@ export const Game = ({ totalTime, increment }: GameProps) => {
     const localAudioRef = useRef<HTMLAudioElement>(null);
     const remoteAudioRef = useRef<HTMLAudioElement>(null);
     const [isMuted, setIsMuted] = useState(false);
+    const [moveEvaluations, setMoveEvaluations] = useState<number[]>([]);
+    const [gameState, setGameState] = useState<GameState>({
+        moveHistory: [],
+        currentEvaluation: 0,
+        winningChances: { white: 50, black: 50 }
+    });
 
     useEffect(() => {
         setUsername(sessionStorage.getItem("username"));
@@ -179,10 +192,14 @@ export const Game = ({ totalTime, increment }: GameProps) => {
             try {
                 const data = JSON.parse(event.data);
                 console.log("📩 Received WebSocket message:", data);
+                console.log("currently ran from here");
+                
 
                 switch (data.event) {
                     case "MOVE":
                         console.log("♟️ Processing MOVE");
+                        console.log(data);
+                        
                         try {
                             const newTurn = data.data.turn;
                             sessionStorage.setItem("turn", newTurn);
@@ -196,11 +213,25 @@ export const Game = ({ totalTime, increment }: GameProps) => {
                                 }));
                             }
 
+                            setGameState(prevState => ({
+                                moveHistory: [...prevState.moveHistory, {
+                                    san: data.data.move,
+                                    evaluation: data.evaluation
+                                }],
+                                currentEvaluation: data.evaluation,
+                                winningChances: {
+                                    white: data.winning_chance.white,
+                                    black: data.winning_chance.black
+                                }
+                            }));
+                            setMoveEvaluations(prev => [...prev, data.evaluation]);
                             chess.move(data.data.move);
                             console.log("👉 Move turn:", data.data.turn);
                             console.log("🎮 Updated board:", chess.board());
                             
                             setBoard(chess.board());
+
+
                         } catch (error) {
                             console.error("❌ Error processing move:", error);
                         }
@@ -410,14 +441,14 @@ export const Game = ({ totalTime, increment }: GameProps) => {
 
     return (
         <div className="grid grid-cols-5 h-screen justify-center items-center bg-gradient-to-br from-[#0f172a] via-[#1e3a8a] to-[#581c87]">
-        <audio ref={localAudioRef} autoPlay playsInline />
-        <audio ref={remoteAudioRef} autoPlay playsInline />
-        <button 
+            <audio ref={localAudioRef} autoPlay playsInline />
+            <audio ref={remoteAudioRef} autoPlay playsInline />
+            <button 
                 onClick={toggleLocalAudio} 
                 className="absolute top-4 left-4 bg-blue-500 text-white p-2 rounded"
             >
                 {isMuted ? "Unmute" : "Mute"} Mic
-        </button>
+            </button>
             {winner && <WinnerPopup winner={winner} onClose={() => {
                 setWinner(null)
                 navigate("/")
@@ -432,6 +463,16 @@ export const Game = ({ totalTime, increment }: GameProps) => {
                     showTimers={true}
                     reverse={sessionStorage.getItem("username") !== sessionStorage.getItem("white")}
                 />
+            </div>
+            <div className="col-span-2 h-full">
+            <GameAnalysis
+                evaluation={gameState.currentEvaluation}
+                winningChances={gameState.winningChances}
+                moveHistory={chess.history().map((move, index) => ({
+                    san: move,
+                    evaluation: moveEvaluations[index] || 0
+                }))}
+            />
             </div>
         </div>
     );
