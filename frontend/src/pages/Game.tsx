@@ -54,6 +54,8 @@ export const Game = ({ totalTime, increment }: GameProps) => {
         setUsername(sessionStorage.getItem("username"));
         setOpponent(sessionStorage.getItem("opponent"));
         setWhite(sessionStorage.getItem("white"));
+        console.log(white);
+        
     }, []);
 
     useEffect(() => {
@@ -228,7 +230,7 @@ export const Game = ({ totalTime, increment }: GameProps) => {
                                     black: data.winning_chance.black
                                 },
                                 suggestion: data.suggest,
-                                showSuggestion: true
+                                showSuggestion: suggestion
                             }));
                             setMoveEvaluations(prev => [...prev, data.evaluation]); 
                             chess.move(data.data.move);

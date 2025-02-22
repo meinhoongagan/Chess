@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useGlobalState } from "../GlobalState/Store";
 import { ChessBoard } from "../components/ChessBoard";
 import { Chess } from "chess.js";
