@@ -5,9 +5,11 @@ interface GlobalState {
     socket: WebSocket | null;
     time: number | null;
     activePlayer: string | null;
+    suggestion: boolean;
     init_game: (message: any) => void;
     make_move: (message: any) => void;
     setTime: (time: number) => void;
+    setSuggestion: (suggestion: boolean) => void;
     send_offer: (target: string , offer: any) => void;
     send_answer: (target: string , answer: any) => void;
     send_ice_candidate: (target: string , candidate: any) => void;
@@ -18,6 +20,7 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
     socket: null,
     time: null,
     activePlayer:null,
+    suggestion:false,
     init_game: async (message: any) => { 
         let socket = get().socket;
     
@@ -119,7 +122,9 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
             set({ time: time });
         }
     },
-
+    setSuggestion : (suggestion: boolean) => {
+        set({ suggestion: suggestion });
+    },
     send_offer: async (target: string, offer:any) => {
         let socket = get().socket;
         if (!socket) {

@@ -14,6 +14,8 @@ interface GameState {
     moveHistory: { san: string; evaluation: number }[];
     currentEvaluation: number;
     winningChances: { white: number; black: number };
+    suggestion: string;
+    showSuggestion: boolean;
 }
 
 interface TimeState {
@@ -25,7 +27,7 @@ export const Game = ({ totalTime, increment }: GameProps) => {
     const [chess] = useState(new Chess());
     const [board, setBoard] = useState(chess.board());
     const [moveFrom, setMoveFrom] = useState<string | null>(null);
-    const { make_move, socket , time , send_offer , send_answer , send_ice_candidate } = useGlobalState((state) => state);
+    const { make_move, socket , time , send_offer , send_answer , send_ice_candidate , suggestion } = useGlobalState((state) => state);
     const [winner, setWinner] = useState<string | null>(null);
     const [activePlayer, setActivePlayer] = useState<string>();
     const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -43,7 +45,9 @@ export const Game = ({ totalTime, increment }: GameProps) => {
     const [gameState, setGameState] = useState<GameState>({
         moveHistory: [],
         currentEvaluation: 0,
-        winningChances: { white: 50, black: 50 }
+        winningChances: { white: 50, black: 50 },
+        suggestion: "e2e4",
+        showSuggestion: false
     });
 
     useEffect(() => {
@@ -212,7 +216,7 @@ export const Game = ({ totalTime, increment }: GameProps) => {
                                     [data.data.player]: prevTimes[data.data.player] + increment
                                 }));
                             }
-
+                            
                             setGameState(prevState => ({
                                 moveHistory: [...prevState.moveHistory, {
                                     san: data.data.move,
@@ -222,9 +226,11 @@ export const Game = ({ totalTime, increment }: GameProps) => {
                                 winningChances: {
                                     white: data.winning_chance.white,
                                     black: data.winning_chance.black
-                                }
+                                },
+                                suggestion: data.suggest,
+                                showSuggestion: true
                             }));
-                            setMoveEvaluations(prev => [...prev, data.evaluation]);
+                            setMoveEvaluations(prev => [...prev, data.evaluation]); 
                             chess.move(data.data.move);
                             console.log("👉 Move turn:", data.data.turn);
                             console.log("🎮 Updated board:", chess.board());
@@ -472,6 +478,8 @@ export const Game = ({ totalTime, increment }: GameProps) => {
                     san: move,
                     evaluation: moveEvaluations[index] || 0
                 }))}
+                suggestions={gameState.suggestion}
+                showSuggestion={gameState.showSuggestion}
             />
             </div>
         </div>

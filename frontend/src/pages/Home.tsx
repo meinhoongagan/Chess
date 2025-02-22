@@ -5,10 +5,9 @@ import { Chess } from "chess.js";
 import { useNavigate } from "react-router-dom";
 
 export const Home = () => {
-
   const [board] = useState(new Chess().board());
   const navigate = useNavigate();
-  const { init_game, setTime } = useGlobalState((state) => state);
+  const { init_game, setTime, setSuggestion } = useGlobalState((state) => state);
   const [totalTime, setTotalTime] = useState(300);
   const [increment, setIncrement] = useState(5);
 
@@ -61,6 +60,20 @@ export const Home = () => {
           <option value="10">10 Sec</option>
         </select>
 
+        {/* Suggestion Checkbox */}
+        <div className="mt-4 flex items-center">
+          <input 
+            type="checkbox" 
+            name="suggestion" 
+            id="suggestion" 
+            className="w-5 h-5 text-purple-500 bg-gray-700 border-gray-500 rounded focus:ring-2 focus:ring-purple-400 cursor-pointer"
+            onChange={(e) => setSuggestion(e.target.checked)}
+          />
+          <label htmlFor="suggestion" className="text-white text-lg font-semibold ml-2 cursor-pointer">
+            Enable Suggestions
+          </label>
+        </div>
+
         {/* Join Game Button */}
         <button
           className="w-full text-white font-bold text-lg p-3 mt-6 bg-gradient-to-r from-green-700 to-green-500 rounded-lg shadow-md hover:scale-105 transition-all duration-200"
@@ -71,14 +84,7 @@ export const Home = () => {
             }
             init_game({ totalTime, increment });
             setTime(totalTime);
-            navigate("/matching",
-              {
-                state: {
-                  totalTime,
-                  increment
-                }
-              }
-            );
+            navigate("/matching", { state: { totalTime, increment } });
           }}
         >
           🚀 Join Game

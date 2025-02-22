@@ -8,12 +8,16 @@ interface ChessMove {
 const GameAnalysis = ({ 
     evaluation = 0,
     winningChances = { white: 50, black: 50 },
-    moveHistory = [] as ChessMove[]
+    moveHistory = [] as ChessMove[],
+    suggestions = "",
+    showSuggestion = false
 }) => {
     // Calculate evaluation bar height
     const getEvalBarHeight = () => {
         const clampedEval = Math.max(-5, Math.min(5, evaluation));
         const percentage = (50 + (clampedEval * 10));
+        console.log(showSuggestion);
+        
         return `${percentage}%`;
     };
 
@@ -72,6 +76,14 @@ const GameAnalysis = ({
                     {evaluation > 0 ? '+' : ''}{evaluation.toFixed(2)}
                 </div>
             </div>
+
+            {/* Suggestions */}
+            {showSuggestion && (
+                <div className="space-y-4 p-4 bg-[#1e293b] rounded-lg border border-gray-500 shadow-lg animate-fade-in">
+                    <h3 className="text-lg font-semibold mb-2 text-purple-400">💡 Suggestions</h3>
+                    <p className="text-white text-sm leading-relaxed">{suggestions}</p>
+                </div>
+            )}
 
             {/* Move History */}
             <div className="space-y-2">
