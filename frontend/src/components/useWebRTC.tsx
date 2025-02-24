@@ -9,7 +9,7 @@ interface UseWebRTCProps {
     send_ice_candidate: (opponent: string, candidate: RTCIceCandidate) => void;
 }
 
-export const useWebRTC = ({ username, opponent, white, send_offer, send_answer, send_ice_candidate }: UseWebRTCProps) => {
+export const useWebRTC = ({ username, opponent, white, send_offer, send_ice_candidate }: UseWebRTCProps) => {
     const [peerConnection, setPeerConnection] = useState<RTCPeerConnection>();
     const [localStream, setLocalStream] = useState<MediaStream>();
     const [isMuted, setIsMuted] = useState(false);

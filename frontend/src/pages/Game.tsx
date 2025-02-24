@@ -34,8 +34,6 @@ export const Game = ({ totalTime, increment }: GameProps) => {
         setMoveFrom,
         winner,
         setWinner,
-        activePlayer,
-        times,
         moveEvaluations,
         setMoveEvaluations,
         gameState,

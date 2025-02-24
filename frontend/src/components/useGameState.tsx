@@ -20,7 +20,7 @@ interface UseGameStateProps {
     opponent: string | null;
 }
 
-export const useGameState = ({ totalTime, increment, socket, suggestion, username, opponent }: UseGameStateProps) => {
+export const useGameState = ({ totalTime, username, opponent }: UseGameStateProps) => {
     const [chess] = useState(new Chess());
     const [board, setBoard] = useState(chess.board());
     const [moveFrom, setMoveFrom] = useState<string | null>(null);
