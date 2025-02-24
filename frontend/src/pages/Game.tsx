@@ -1,448 +1,219 @@
-import { Chess, Color, PieceSymbol, Square } from "chess.js";
-import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { Square, PieceSymbol, Color } from "chess.js";
 import { ChessBoard } from "../components/ChessBoard";
 import { useGlobalState } from "../GlobalState/Store";
 import WinnerPopup from "../components/WinnerPopup";
-import { useNavigate } from "react-router-dom";
 import GameAnalysis from "../components/GameAnalysis";
+import { useWebRTC } from "../components/useWebRTC";
+import { useGameState } from "../components/useGameState";
+import { useEffect, useState } from "react";
+
 interface GameProps {
     totalTime: number;
     increment: number;
 }
 
-interface GameState {
-    moveHistory: { san: string; evaluation: number }[];
-    currentEvaluation: number;
-    winningChances: { white: number; black: number };
-    suggestion: string;
-    showSuggestion: boolean;
-}
-
-interface TimeState {
-    [key: string]: number;
-}
-
 export const Game = ({ totalTime, increment }: GameProps) => {
     const navigate = useNavigate();
-    const [chess] = useState(new Chess());
-    const [board, setBoard] = useState(chess.board());
-    const [moveFrom, setMoveFrom] = useState<string | null>(null);
-    const { make_move, socket , time , send_offer , send_answer , send_ice_candidate , suggestion } = useGlobalState((state) => state);
-    const [winner, setWinner] = useState<string | null>(null);
-    const [activePlayer, setActivePlayer] = useState<string>();
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
-    const initialTimes: TimeState = {};
-    const [times, setTimes] = useState<TimeState>(initialTimes);
+    const { make_move, socket, suggestion, send_offer, send_answer, send_ice_candidate } = useGlobalState(state => state);
     const [username, setUsername] = useState<string | null>(null);
     const [opponent, setOpponent] = useState<string | null>(null);
     const [white, setWhite] = useState<string | null>(null);
-    const [peerConnection,setPeerConnection] = useState<RTCPeerConnection>();
-    const [localStream, setLocalStream] = useState<MediaStream>();
-    const localAudioRef = useRef<HTMLAudioElement>(null);
-    const remoteAudioRef = useRef<HTMLAudioElement>(null);
-    const [isMuted, setIsMuted] = useState(false);
-    const [moveEvaluations, setMoveEvaluations] = useState<number[]>([]);
-    const [gameState, setGameState] = useState<GameState>({
-        moveHistory: [],
-        currentEvaluation: 0,
-        winningChances: { white: 50, black: 50 },
-        suggestion: "e2e4",
-        showSuggestion: false
-    });
 
     useEffect(() => {
         setUsername(sessionStorage.getItem("username"));
         setOpponent(sessionStorage.getItem("opponent"));
         setWhite(sessionStorage.getItem("white"));
-        console.log(white);
-        
     }, []);
 
-    useEffect(() => {
-        const setupWebRTC = async () => {
-            try {
-                // 1. Create RTCPeerConnection with STUN servers
-                const pc = new RTCPeerConnection({
-                    iceServers: [
-                        { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' }
-                    ],
-                    iceCandidatePoolSize: 10
-                });
-                
-                console.log("🔄 Created new RTCPeerConnection");
-                
-                // 2. Set up connection state monitoring
-                pc.onconnectionstatechange = () => {
-                    console.log("📡 Connection State:", pc.connectionState);
-                };
-    
-                pc.oniceconnectionstatechange = () => {
-                    console.log("❄️ ICE Connection State:", pc.iceConnectionState);
-                };
-    
-                // 3. Handle ICE candidates
-                pc.onicecandidate = (event) => {
-                    if (event.candidate) {
-                        console.log("❄️ New ICE candidate:", {
-                            sdpMid: event.candidate.sdpMid,
-                            sdpMLineIndex: event.candidate.sdpMLineIndex,
-                            candidate: event.candidate.candidate
-                        });
-                        
-                        const opponent = sessionStorage.getItem("opponent");
-                        if (!opponent) {
-                            console.error("❌ No opponent found in sessionStorage");
-                            return;
-                        }
-                        
-                        try {
-                            send_ice_candidate(opponent, event.candidate);
-                            console.log("📤 Successfully sent ICE candidate to:", opponent);
-                        } catch (error) {
-                            console.error("❌ Error sending ICE candidate:", error);
-                        }
-                    } else {
-                        console.log("✅ ICE Candidate gathering complete");
-                    }
-                };
-    
-                // 4. Get local audio stream
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }
-                });
-                
-                console.log("🎤 Audio stream obtained");
-                
-                // 5. Set up local audio preview
-                if (localAudioRef.current) {
-                    localAudioRef.current.srcObject = stream;
-                    localAudioRef.current.muted = true; // Mute local audio preview
-                }
-    
-                // 6. Add tracks to peer connection
-                stream.getTracks().forEach(track => {
-                    pc.addTrack(track, stream);
-                    console.log("🎵 Added local audio track to peer connection");
-                });
-    
-                // 7. Handle remote audio stream
-                pc.ontrack = (event) => {
-                    console.log("🔊 Received remote audio track");
-                    if (remoteAudioRef.current) {
-                        remoteAudioRef.current.srcObject = event.streams[0];
-                    }
-                };
-    
-                // 8. Store peer connection and stream
-                setPeerConnection(pc);
-                setLocalStream(stream);
-    
-                // 9. Create offer if white player
-                if (sessionStorage.getItem("white") === sessionStorage.getItem("username")) {
-                    try {
-                        console.log("📝 Starting offer creation...");
-                        const offer = await pc.createOffer({
-                            offerToReceiveAudio: true,
-                            iceRestart: true
-                        });
-                        console.log("📄 Offer created:", offer);
-    
-                        await pc.setLocalDescription(offer);
-                        console.log("📍 Local description set");
-    
-                        const opponent = sessionStorage.getItem("opponent");
-                        if (!opponent) {
-                            throw new Error("No opponent found in sessionStorage");
-                        }
-    
-                        send_offer(opponent, offer);
-                        console.log("📨 Offer sent to opponent:", opponent);
-                    } catch (error) {
-                        console.error("❌ Error in offer creation:", error);
-                    }
-                }
-    
-            } catch (error) {
-                console.error("❌ Error in WebRTC setup:", error);
-            }
-        };
-    
-        setupWebRTC();
-    
-        // Cleanup function
-        return () => {
-            localStream?.getTracks().forEach(track => {
-                track.stop();
-                console.log("🛑 Stopped audio track");
-            });
-            peerConnection?.close();
-            console.log("🔌 Peer connection closed");
-        };
-    }, []); // Empty dependency array - run once on moun 
+    const {
+        chess,
+        board,
+        setBoard,
+        moveFrom,
+        setMoveFrom,
+        winner,
+        setWinner,
+        activePlayer,
+        times,
+        moveEvaluations,
+        setMoveEvaluations,
+        gameState,
+        setGameState
+    } = useGameState({ totalTime, increment, socket, suggestion, username, opponent });
 
-    // Consolidated WebSocket message handler
-    useEffect(() => {
-        if (!socket) {
-            console.log("❌ WebSocket not established");
-            return;
-        }
+    const {
+        localAudioRef,
+        remoteAudioRef,
+        isMuted,
+        toggleLocalAudio,
+        peerConnection
+    } = useWebRTC({ username, opponent, white, send_offer, send_answer, send_ice_candidate });
 
-        console.log("✅ Setting up consolidated WebSocket message handler");
-        
+    // WebSocket message handler
+    useEffect(() => {
+        if (!socket) return;
+
         socket.onmessage = async (event) => {
             try {
                 const data = JSON.parse(event.data);
-                console.log("📩 Received WebSocket message:", data);
-                console.log("currently ran from here");
-                
 
                 switch (data.event) {
                     case "MOVE":
-                        console.log("♟️ Processing MOVE");
                         console.log(data);
-                        
-                        try {
-                            const newTurn = data.data.turn;
-                            sessionStorage.setItem("turn", newTurn);
-                            setActivePlayer(newTurn);
-
-                            // Add increment time after move if specified
-                            if (increment > 0) {
-                                setTimes(prevTimes => ({
-                                    ...prevTimes,
-                                    [data.data.player]: prevTimes[data.data.player] + increment
-                                }));
-                            }
-                            
-                            setGameState(prevState => ({
-                                moveHistory: [...prevState.moveHistory, {
-                                    san: data.data.move,
-                                    evaluation: data.evaluation
-                                }],
-                                currentEvaluation: data.evaluation,
-                                winningChances: {
-                                    white: data.winning_chance.white,
-                                    black: data.winning_chance.black
-                                },
-                                suggestion: data.suggest,
-                                showSuggestion: suggestion
-                            }));
-                            setMoveEvaluations(prev => [...prev, data.evaluation]); 
-                            chess.move(data.data.move);
-                            console.log("👉 Move turn:", data.data.turn);
-                            console.log("🎮 Updated board:", chess.board());
-                            
-                            setBoard(chess.board());
-
-
-                        } catch (error) {
-                            console.error("❌ Error processing move:", error);
-                        }
+                        handleMove(data);
                         break;
-
                     case "GAME_OVER":
-                        console.log("🏁 Processing GAME_OVER");
-                        setWinner(data.data.winner);
-                        if (timerRef.current) {
-                            clearInterval(timerRef.current);
-                        }
+                        handleGameOver(data);
                         break;
-
                     case "OFFER":
-                        if (!peerConnection) {
-                            console.error("❌ No peer connection available for offer");
-                            break;
-                        }
-                        console.log("📡 Processing OFFER");
-                        try {
-                            await peerConnection.setRemoteDescription(
-                                new RTCSessionDescription(data.data.offer)
-                            );
-                            const answer = await peerConnection.createAnswer();
-                            await peerConnection.setLocalDescription(answer);
-                            send_answer(sessionStorage.getItem("opponent") ?? "", answer);
-                        } catch (error) {
-                            console.error("❌ Error processing offer:", error);
-                        }
+                        handleOffer(data);
                         break;
-
                     case "ANSWER":
-                        if (!peerConnection) {
-                            console.error("❌ No peer connection available for answer");
-                            break;
-                        }
-                        console.log("📡 Processing ANSWER");
-                        try {
-                            if (peerConnection.signalingState === "stable") {
-                                console.warn("⚠️ Skipping setRemoteDescription: Already in stable state");
-                                break;
-                            }
-                            await peerConnection.setRemoteDescription(
-                                new RTCSessionDescription(data.data.answer)
-                            );
-                        } catch (error) {
-                            console.error("❌ Error processing answer:", error);
-                        }
+                        handleAnswer(data);
                         break;
-
                     case "ICE_CANDIDATE":
-                        if (!peerConnection) {
-                            console.error("❌ No peer connection available for ICE candidate");
-                            break;
-                        }
-                        console.log("❄️ Processing ICE_CANDIDATE");
-                        if (data.data.candidate) {
-                            try {
-                                await peerConnection.addIceCandidate(
-                                    new RTCIceCandidate(data.data.candidate)
-                                );
-                            } catch (error) {
-                                console.error("❌ Error adding ICE Candidate:", error);
-                            }
-                        }
+                        handleIceCandidate(data);
                         break;
-
-                    default:
-                        console.log("⚠️ Unhandled event type:", data.event);
                 }
             } catch (error) {
-                console.error("❌ Error processing message:", error);
-                console.log("📄 Raw message:", event.data);
+                console.error("Error processing message:", error);
             }
         };
+    }, [socket, peerConnection, chess]);
 
-        return () => {
-            socket.onmessage = null;
-            if (timerRef.current) {
-                clearInterval(timerRef.current);
-            }
-            console.log("🔄 Cleaned up WebSocket message handler");
-        };
-    }, [socket, peerConnection, chess, increment]);
+    const handleMove = (data: any) => {
+        const newTurn = data.data.turn;
+        sessionStorage.setItem("turn", newTurn);
 
-    // Initialize times and active player when component mounts
-    useEffect(() => {
-        if (!username || !opponent) return;
+        setGameState(prevState => ({
+            ...prevState,
+            activePlayer: newTurn,
+            times: data.time,
+            moveHistory: [...prevState.moveHistory, {
+                san: data.data.move,
+                evaluation: data.evaluation
+            }],
+            currentEvaluation: data.evaluation,
+            winningChances: data.winning_chance,
+            suggestion: data.suggest,
+            showSuggestion: suggestion
+        }));
 
-        const initialTurn = sessionStorage.getItem("turn");
-        const initialTime = totalTime || time || 0;
+        setMoveEvaluations((prev: number[]) => [...prev, data.evaluation]);
+        chess.move(data.data.move);
+        setBoard(chess.board());
+    };
 
-        setTimes({
-            [username]: initialTime,
-            [opponent]: initialTime
-        });
+    const handleGameOver = (data: any) => {
+        setWinner(data.data.winner);
+    };
 
-        const initialActivePlayer = initialTurn || sessionStorage.getItem("white") || username;
-        setActivePlayer(initialActivePlayer);
-    }, [username, opponent, totalTime, time]);
-    
-
-    // Timer effect
-    useEffect(() => {
-        if (!activePlayer || !times[activePlayer] || winner) return;
-
-        // Clear existing timer
-        if (timerRef.current) {
-            clearInterval(timerRef.current);
+    const handleOffer = async (data: any) => {
+        if (!peerConnection) return;
+        try {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.data.offer));
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            send_answer(opponent ?? "", answer);
+        } catch (error) {
+            console.error("Error processing offer:", error);
         }
+    };
 
-        // Only start timer if it's the current player's turn
-        const currentTurn = sessionStorage.getItem("turn");
-        if (activePlayer !== currentTurn) return;
+    const handleAnswer = async (data: any) => {
+        if (!peerConnection || peerConnection.signalingState === "stable") return;
+        try {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.data.answer));
+        } catch (error) {
+            console.error("Error processing answer:", error);
+        }
+    };
 
-        timerRef.current = setInterval(() => {
-            setTimes(prevTimes => {
-                const newTime = Math.max(0, prevTimes[activePlayer] - 1);
-                
-                // Check for time out
-                if (newTime === 0 && !winner) {
-                    if (timerRef.current) {
-                        clearInterval(timerRef.current);
-                    }
-                    const timeoutWinner = activePlayer === username ? opponent : username;
-                    setWinner(timeoutWinner || null);
-                    socket?.send(JSON.stringify({
-                        event: "GAME_OVER",
-                        data: {
-                            winner: timeoutWinner
-                        }
-                    }));
-                }
-
-                return {
-                    ...prevTimes,
-                    [activePlayer]: newTime
-                };
-            });
-        }, 1000);
-
-        return () => {
-            if (timerRef.current) {
-                clearInterval(timerRef.current);
-            }
-        };
-    }, [activePlayer, times, winner, username, opponent]);
+    const handleIceCandidate = async (data: any) => {
+        if (!peerConnection || !data.data.candidate) return;
+        try {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(data.data.candidate));
+        } catch (error) {
+            console.error("Error adding ICE Candidate:", error);
+        }
+    };
 
     const handleSquareClick = (square: string, piece: { square: Square; type: PieceSymbol; color: Color } | null) => {
         try {
             if (moveFrom) {
-                const squareElement = document.getElementById(moveFrom);
-                const move = chess.move({ from: moveFrom, to: square, promotion: "q" });
-
-                if (move) {
-                    setBoard(chess.board());
-                    setMoveFrom(null);
-                    if (squareElement) {
-                        squareElement.style.removeProperty("border");
-                    }
-                    make_move(move.san);
-                }
-                setMoveFrom(null);
-
+                handleMoveFromSquare(square, piece);
             } else {
-                const currentTurn = sessionStorage.getItem("turn");
-                const username = sessionStorage.getItem("username");
-                
-                if (username !== currentTurn) {
-                    alert("It's not your turn");
-                    return;
-                }
-
-                if (!piece?.square) return;
-                
-                const currPiece = chess.get(piece.square);
-                if (!currPiece) return;
-
-                setMoveFrom(square);
-
-                const squareElement = document.getElementById(square);
-                if (squareElement) {
-                    squareElement.style.removeProperty("border");
-                    squareElement.style.border = "3px solid blue";
-                }
+                handleInitialSquareSelection(square, piece);
             }
         } catch (e) {
             console.log(e);
-            setMoveFrom(null);
-            if (moveFrom) {
-                const squareElement = document.getElementById(moveFrom);
-                if (squareElement) {
-                    squareElement.style.removeProperty("border");
-                }
-            }
+            handleMoveError();
         }
     };
-    const toggleLocalAudio = () => {
-        if (localStream) {
-            const audioTrack = localStream.getAudioTracks()[0];
-            if (audioTrack) {
-                audioTrack.enabled = !audioTrack.enabled;
-                setIsMuted(!audioTrack.enabled);
+
+    const handleMoveFromSquare = (square: string, piece: { square: Square; type: PieceSymbol; color: Color } | null) => {
+        const currentPiece = chess.get(moveFrom as Square);
+        if (piece && currentPiece && piece.color === currentPiece.color) {
+            updateSelectedSquare(square);
+            return;
+        }
+
+        makeMove(square);
+    };
+
+    const handleInitialSquareSelection = (square: string, piece: { square: Square; type: PieceSymbol; color: Color } | null) => {
+        const currentTurn = sessionStorage.getItem("turn");
+        const username = sessionStorage.getItem("username");
+        
+        if (username !== currentTurn) {
+            alert("It's not your turn");
+            return;
+        }
+
+        if (!piece?.square) return;
+        
+        const currPiece = chess.get(piece.square);
+        if (!currPiece) return;
+
+        updateSelectedSquare(square);
+    };
+
+    const updateSelectedSquare = (square: string) => {
+        if (moveFrom) {
+            const prevSquareElement = document.getElementById(moveFrom);
+            if (prevSquareElement) {
+                prevSquareElement.style.removeProperty("border");
+            }
+        }
+
+        setMoveFrom(square);
+        const squareElement = document.getElementById(square);
+        if (squareElement) {
+            squareElement.style.border = "3px solid blue";
+        }
+    };
+
+    const makeMove = (square: string) => {
+        const squareElement = document.getElementById(moveFrom!);
+        const move = chess.move({ from: moveFrom!, to: square, promotion: "q" });
+
+        if (move) {
+            setBoard(chess.board());
+            if (squareElement) {
+                squareElement.style.removeProperty("border");
+            }
+            make_move(move.san);
+        }
+        setMoveFrom(null);
+    };
+
+    const handleMoveError = () => {
+        setMoveFrom(null);
+        if (moveFrom) {
+            const squareElement = document.getElementById(moveFrom);
+            if (squareElement) {
+                squareElement.style.removeProperty("border");
             }
         }
     };
@@ -451,16 +222,24 @@ export const Game = ({ totalTime, increment }: GameProps) => {
         <div className="grid grid-cols-5 h-screen justify-center items-center bg-gradient-to-br from-[#0f172a] via-[#1e3a8a] to-[#581c87]">
             <audio ref={localAudioRef} autoPlay playsInline />
             <audio ref={remoteAudioRef} autoPlay playsInline />
+            
             <button 
                 onClick={toggleLocalAudio} 
-                className="absolute top-4 left-4 bg-blue-500 text-white p-2 rounded"
+                className="absolute top-4 left-4 bg-blue-500 hover:bg-blue-600 text-white p-2 rounded transition-colors"
             >
                 {isMuted ? "Unmute" : "Mute"} Mic
             </button>
-            {winner && <WinnerPopup winner={winner} onClose={() => {
-                setWinner(null)
-                navigate("/")
-            }} />}
+
+            {winner && 
+                <WinnerPopup 
+                    winner={winner} 
+                    onClose={() => {
+                        setWinner(null);
+                        navigate("/");
+                    }} 
+                />
+            }
+
             <div className="grid col-span-3 justify-center items-center">
                 <ChessBoard 
                     board={board} 
@@ -472,18 +251,21 @@ export const Game = ({ totalTime, increment }: GameProps) => {
                     reverse={sessionStorage.getItem("username") !== sessionStorage.getItem("white")}
                 />
             </div>
+
             <div className="col-span-2 h-full">
-            <GameAnalysis
-                evaluation={gameState.currentEvaluation}
-                winningChances={gameState.winningChances}
-                moveHistory={chess.history().map((move, index) => ({
-                    san: move,
-                    evaluation: moveEvaluations[index] || 0
-                }))}
-                suggestions={gameState.suggestion}
-                showSuggestion={gameState.showSuggestion}
-            />
+                <GameAnalysis
+                    evaluation={gameState.currentEvaluation}
+                    winningChances={gameState.winningChances}
+                    moveHistory={chess.history().map((move: string, index: number) => ({
+                        san: move,
+                        evaluation: moveEvaluations[index] || 0
+                    }))}
+                    suggestions={gameState.suggestion}
+                    showSuggestion={gameState.showSuggestion}
+                />
             </div>
         </div>
     );
 };
+
+export default Game;

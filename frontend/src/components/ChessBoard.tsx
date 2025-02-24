@@ -11,7 +11,6 @@ import b_queen from "../assets/b_queen.svg";
 import w_queen from "../assets/w_queen.svg";
 import b_rook from "../assets/b_rook.svg";
 import w_rook from "../assets/w_rook.svg";
-import { useGlobalState } from "../GlobalState/Store";
 
 interface ChessBoardProps {
     board: ({ square: Square; type: PieceSymbol; color: Color } | null)[][];
@@ -42,71 +41,69 @@ export const ChessBoard = ({
     board, 
     onSquareClick, 
     times = {}, 
-    activePlayer, 
+    activePlayer,
+    totalTime = 300,
     showTimers = false,
     reverse = false
 }: ChessBoardProps) => {
-   
-    const { time } = useGlobalState((state) => state);
-  
-    const formatTime = (timeInSeconds: number | undefined) => {
-        if (timeInSeconds === undefined || isNaN(timeInSeconds)) return `${time ?? 0/60}:00`;
+    const username = sessionStorage.getItem("username");
+    const opponent = sessionStorage.getItem("opponent");
+    const white = sessionStorage.getItem("white");
+    const playerColor = sessionStorage.getItem("playerColor") as Color | null;
+
+    // Ensure timer starts for white player
+    const currentActivePlayer = activePlayer || white;
+    
+    const formatTime = (timeInSeconds: number) => {
         const minutes = Math.floor(timeInSeconds / 60);
         const seconds = Math.floor(timeInSeconds % 60);
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     };
-  
-    const username = sessionStorage.getItem("username");
-    const opponent = sessionStorage.getItem("opponent");
-    const playerColor = sessionStorage.getItem("playerColor") as Color | null;
-  
+
     const shouldReverseBoard = reverse || playerColor === "b";
     const displayBoard = shouldReverseBoard ? board.slice().reverse() : board;
-  
-    const TimerDisplay = ({ 
-        player, 
-        username, 
-        playerColor, 
-        isActive 
-    }: { 
+
+    const TimerDisplay = ({ player, username, playerColor, isActive }: { 
         player: string | null; 
         username: string; 
         playerColor: String | null; 
         isActive?: boolean; 
     }) => {
-        if (!player || !showTimers) return null;  
-                
-    
-        const timeValue = times[player] || time;
+        if (!player || !showTimers) return null;
+
+        // Use totalTime if no time is set for the player
+        const timeValue = typeof times[player] === 'number' ? times[player] : totalTime;
+
         const timerBgColor = playerColor === "w" ? "bg-white text-black" : "bg-black text-white";
-    
+        const isPlayerActive = isActive || (player === white && !activePlayer);
+
         return (
             <div className={`flex items-center justify-center gap-4 w-full px-6 py-3 rounded-xl ${timerBgColor} shadow-lg border ${
-                isActive ? "border-yellow-400" : "border-gray-500"
+                isPlayerActive ? "border-yellow-400" : "border-gray-500"
             }`}>
                 <span className="text-lg font-semibold">
                     {playerColor === "w" ? '♜' : '♖'} {username} Time:
                 </span>
-                <span className={`text-xl font-bold ${timeValue ?? 0 < 60 ? "text-red-400" : "text-green-400"}`}>
-                    {formatTime(timeValue ?? 0)}
+                <span className={`text-xl font-bold ${timeValue < 60 ? "text-red-400" : "text-green-400"}`}>
+                    {formatTime(timeValue)}
                 </span>
             </div>
         );
     };
-    
-    // Fixed timer configurations to maintain correct positions
+
+    // Fixed timer configurations
     const topTimer = {
         player: opponent,
         playerColor: shouldReverseBoard ? "b" : "w",
         username: opponent as string,
-        isActive: activePlayer === opponent
+        isActive: currentActivePlayer === opponent
     };
 
     const bottomTimer = {
         player: username,
         playerColor: shouldReverseBoard ? "w" : "b",
-        username: "Your",
-        isActive: true
+        username: username as string,
+        isActive: currentActivePlayer === username
     };
 
     return (
