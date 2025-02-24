@@ -244,8 +244,8 @@ export const Game = ({ totalTime, increment }: GameProps) => {
                 <ChessBoard 
                     board={board} 
                     onSquareClick={handleSquareClick} 
-                    times={times}
-                    activePlayer={activePlayer ?? sessionStorage.getItem("white") ?? "white"}
+                    times={gameState.times}
+                    activePlayer={gameState.activePlayer ?? white ?? ""}
                     totalTime={totalTime}
                     showTimers={true}
                     reverse={sessionStorage.getItem("username") !== sessionStorage.getItem("white")}
