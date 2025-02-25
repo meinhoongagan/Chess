@@ -11,6 +11,9 @@ import b_queen from "../assets/b_queen.svg";
 import w_queen from "../assets/w_queen.svg";
 import b_rook from "../assets/b_rook.svg";
 import w_rook from "../assets/w_rook.svg";
+import { useGlobalState } from "../GlobalState/Store";
+import { log } from "node:console";
+import { useEffect } from "react";
 
 interface ChessBoardProps {
     board: ({ square: Square; type: PieceSymbol; color: Color } | null)[][];
@@ -50,9 +53,17 @@ export const ChessBoard = ({
     const opponent = sessionStorage.getItem("opponent");
     const white = sessionStorage.getItem("white");
     const playerColor = sessionStorage.getItem("playerColor") as Color | null;
+    const { time } = useGlobalState();
 
     // Ensure timer starts for white player
     const currentActivePlayer = activePlayer || white;
+    console.log("currentActivePlayer",currentActivePlayer);
+    console.log("oppo",opponent);
+    console.log("user",username);
+    console.log(" is opponent ",currentActivePlayer == opponent);
+    console.log("is username ",currentActivePlayer == username);
+    
+    
     
     const formatTime = (timeInSeconds: number) => {
         const minutes = Math.floor(timeInSeconds / 60);
@@ -62,6 +73,9 @@ export const ChessBoard = ({
 
     const shouldReverseBoard = reverse || playerColor === "b";
     const displayBoard = shouldReverseBoard ? board.slice().reverse() : board;
+    useEffect(() => {
+        console.log("ChessBoard received times:", times);
+    }, [times]);
 
     const TimerDisplay = ({ player, username, playerColor, isActive }: { 
         player: string | null; 
@@ -70,10 +84,15 @@ export const ChessBoard = ({
         isActive?: boolean; 
     }) => {
         if (!player || !showTimers) return null;
-
-        // Use totalTime if no time is set for the player
-        const timeValue = typeof times[player] === 'number' ? times[player] : totalTime;
-
+        let timeValue = times[player];
+        // Use totalTime if no time is set for the player        
+        if(times[player] == 0 && times[sessionStorage.getItem("opponent")??""] == 0) {
+            timeValue = time ?? totalTime;
+        }
+        else{
+            timeValue = typeof times[player] === 'number' ? times[player] : time ?? totalTime;
+        }
+        
         const timerBgColor = playerColor === "w" ? "bg-white text-black" : "bg-black text-white";
         const isPlayerActive = isActive || (player === white && !activePlayer);
 

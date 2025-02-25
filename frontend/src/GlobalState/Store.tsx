@@ -10,6 +10,7 @@ interface GlobalState {
     make_move: (message: any) => void;
     setTime: (time: number) => void;
     setSuggestion: (suggestion: boolean) => void;
+    set_activePlayer: (activePlayer: string) => void;
     send_offer: (target: string , offer: any) => void;
     send_answer: (target: string , answer: any) => void;
     send_ice_candidate: (target: string , candidate: any) => void;
@@ -124,6 +125,9 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
     },
     setSuggestion : (suggestion: boolean) => {
         set({ suggestion: suggestion });
+    },
+    set_activePlayer : (activePlayer: string) => {
+        set({ activePlayer: activePlayer });
     },
     send_offer: async (target: string, offer:any) => {
         let socket = get().socket;

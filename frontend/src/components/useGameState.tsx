@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Chess } from 'chess.js';
+import { log } from 'node:console';
+import { useGlobalState } from '../GlobalState/Store';
 
 export interface GameState {
     moveHistory: { san: string; evaluation: number }[];
@@ -27,67 +29,84 @@ export const useGameState = ({ totalTime, username, opponent }: UseGameStateProp
     const [winner, setWinner] = useState<string | null>(null);
     const [moveEvaluations, setMoveEvaluations] = useState<number[]>([]);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const white = sessionStorage.getItem("white");
+    const { time } =  useGlobalState();
     
-    // Initialize game state with initial times
-    const [gameState, setGameState] = useState<GameState>(() => {
-        const white = sessionStorage.getItem("white");
-        return {
-            moveHistory: [],
-            currentEvaluation: 0,
-            winningChances: { white: 50, black: 50 },
-            suggestion: "e2e4",
-            showSuggestion: false,
-            times: username && opponent ? {
-                [username]: totalTime,
-                [opponent]: totalTime
-            } : {},
-            activePlayer: white || undefined
-        };
-    });
+    // Initialize game state with initial times and active player
+    const [gameState, setGameState] = useState<GameState>(() => ({
+        moveHistory: [],
+        currentEvaluation: 0,
+        winningChances: { white: 50, black: 50 },
+        suggestion: "e2e4",
+        showSuggestion: false,
+        times: {
+          [sessionStorage.getItem("username") ?? ""]: totalTime,
+          [sessionStorage.getItem("opponent") ?? ""]: totalTime
+        },
+        activePlayer: white || undefined
+      }));
 
-    // Initialize game state and times
+    // Initialize timer and game state on mount
     useEffect(() => {
-        const white = sessionStorage.getItem("white");
-        if (!white || !username || !opponent) return;
-
-        setGameState(prev => ({
-            ...prev,
-            activePlayer: white,
-            times: {
-                [username]: totalTime,
-                [opponent]: totalTime
-            }
-        }));
-    }, [username, opponent, totalTime]);
-
-    // Timer effect - separate from initialization
-    useEffect(() => {
-        const activePlayer = gameState.activePlayer;
-        if (!activePlayer || !gameState.times[activePlayer] || winner) {
-            if (timerRef.current) {
-                clearInterval(timerRef.current);
-            }
-            return;
-        }
-
-        console.log("Starting timer for:", activePlayer); // Debug log
-
-        timerRef.current = setInterval(() => {
-            setGameState(prev => ({
+        setGameState(prev => {
+            const newState = {
                 ...prev,
+                activePlayer: white,
                 times: {
-                    ...prev.times,
-                    [activePlayer]: Math.max(0, prev.times[activePlayer] - 1)
+                    [sessionStorage.getItem("username")??""]: totalTime,
+                    [sessionStorage.getItem("opponent")??""]: totalTime
                 }
-            }));
-        }, 1000);
+            };
+            console.log("After initial state setup:", newState);
+            return newState;
+        });
+    }, [username, opponent, totalTime, white]);
+    
+    // Timer effect
+    useEffect(() => {
+        // Clear any existing timer
+        if (timerRef.current) {
+            if (timerRef.current) clearInterval(timerRef.current);
+        }
+        
+        // Only start timer if there's no winner
+        if (!winner) {
+            const currentPlayer = gameState.activePlayer || white || "";
+            let timeValue = gameState.times[currentPlayer];
+            
+            // Keep your existing initialization logic
+            if(gameState.times[white || ""] == 0 && gameState.times[sessionStorage.getItem("opponent")??""] == 0) {
+                timeValue = time ?? totalTime;
+            }
+            
+            // Start timer for current player if they have time left
+            if (timeValue > 0) {
+                console.log(`Starting timer for ${currentPlayer}`);
+                
+                timerRef.current = setInterval(() => {
+                    setGameState(prev => {
+                        const updatedTime = Math.max(0, prev.times[currentPlayer] - 1);
+                        console.log(`Updated time for ${currentPlayer}:`, updatedTime);
 
+                        return {
+                            ...prev,
+                            times: {
+                                ...prev.times,
+                                [currentPlayer]: updatedTime
+                            }
+                        };
+                    });
+                }, 1000);
+            }
+        }
+        
+        // Cleanup on unmount or deps change
         return () => {
             if (timerRef.current) {
                 clearInterval(timerRef.current);
             }
         };
-    }, [gameState.activePlayer, gameState.times, winner]);
+    }, [white, winner, gameState.times, time, totalTime, gameState.activePlayer]);
 
     return {
         chess,

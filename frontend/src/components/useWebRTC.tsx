@@ -7,16 +7,27 @@ interface UseWebRTCProps {
     send_offer: (opponent: string, offer: RTCSessionDescriptionInit) => void;
     send_answer: (opponent: string, answer: RTCSessionDescriptionInit) => void;
     send_ice_candidate: (opponent: string, candidate: RTCIceCandidate) => void;
+    isGameReady?: boolean; // new prop to control initialization
 }
 
-export const useWebRTC = ({ username, opponent, white, send_offer, send_ice_candidate }: UseWebRTCProps) => {
+export const useWebRTC = ({ username, opponent, white, send_offer, send_ice_candidate, isGameReady = false }: UseWebRTCProps) => {
     const [peerConnection, setPeerConnection] = useState<RTCPeerConnection>();
     const [localStream, setLocalStream] = useState<MediaStream>();
     const [isMuted, setIsMuted] = useState(false);
+    const [isInitialized, setIsInitialized] = useState(false);
     const localAudioRef = useRef<HTMLAudioElement>(null);
     const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
     useEffect(() => {
+        if (!isGameReady || isInitialized) return;
+
+        const initializeWithDelay = () => {
+            setTimeout(() => {
+                setupWebRTC();
+                setIsInitialized(true);
+            }, 1000); // 1 second delay
+        };
+
         const setupWebRTC = async () => {
             try {
                 const pc = new RTCPeerConnection({
@@ -49,6 +60,12 @@ export const useWebRTC = ({ username, opponent, white, send_offer, send_ice_cand
                     }
                 });
                 
+                // Start with audio muted
+                stream.getAudioTracks().forEach(track => {
+                    track.enabled = false;
+                });
+                setIsMuted(true);
+
                 if (localAudioRef.current) {
                     localAudioRef.current.srcObject = stream;
                     localAudioRef.current.muted = true;
@@ -80,14 +97,14 @@ export const useWebRTC = ({ username, opponent, white, send_offer, send_ice_cand
                 console.error("❌ Error in WebRTC setup:", error);
             }
         };
-    
-        setupWebRTC();
+
+        initializeWithDelay();
     
         return () => {
             localStream?.getTracks().forEach(track => track.stop());
             peerConnection?.close();
         };
-    }, [username, opponent, white, send_offer, send_ice_candidate]);
+    }, [isGameReady, isInitialized, username, opponent, white, send_offer, send_ice_candidate]);
 
     const toggleLocalAudio = () => {
         if (localStream) {

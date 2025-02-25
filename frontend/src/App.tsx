@@ -12,7 +12,7 @@ const App = () => {
 
   const navigate = useNavigate();
 
-  const { socket  } = useGlobalState(state => state)
+  const { socket , set_activePlayer  } = useGlobalState(state => state)
   useEffect(() => {
     if (!socket) return;
 
@@ -38,6 +38,7 @@ const App = () => {
           sessionStorage.setItem("turn",data.turn);
           sessionStorage.setItem("white",data.turn);
           sessionStorage.setItem("opponent",data.data.opponent);
+          set_activePlayer(data.turn);
           navigate("/game");
       }
       if(data.event === "MOVE"){
