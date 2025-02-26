@@ -12,7 +12,6 @@ import w_queen from "../assets/w_queen.svg";
 import b_rook from "../assets/b_rook.svg";
 import w_rook from "../assets/w_rook.svg";
 import { useGlobalState } from "../GlobalState/Store";
-import { log } from "node:console";
 import { useEffect } from "react";
 
 interface ChessBoardProps {

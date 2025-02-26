@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
 import { Chess } from 'chess.js';
-import { log } from 'node:console';
 import { useGlobalState } from '../GlobalState/Store';
 
 export interface GameState {
@@ -40,8 +39,8 @@ export const useGameState = ({ totalTime, username, opponent }: UseGameStateProp
         suggestion: "e2e4",
         showSuggestion: false,
         times: {
-          [sessionStorage.getItem("username") ?? ""]: totalTime,
-          [sessionStorage.getItem("opponent") ?? ""]: totalTime
+          [sessionStorage.getItem("username") ?? ""]: time ?? totalTime,
+          [sessionStorage.getItem("opponent") ?? ""]: time ?? totalTime
         },
         activePlayer: white || undefined
       }));
@@ -53,8 +52,8 @@ export const useGameState = ({ totalTime, username, opponent }: UseGameStateProp
                 ...prev,
                 activePlayer: white,
                 times: {
-                    [sessionStorage.getItem("username")??""]: totalTime,
-                    [sessionStorage.getItem("opponent")??""]: totalTime
+                    [sessionStorage.getItem("username")??""]: time ?? totalTime,
+                    [sessionStorage.getItem("opponent")??""]: time ?? totalTime
                 }
             };
             console.log("After initial state setup:", newState);
@@ -73,11 +72,16 @@ export const useGameState = ({ totalTime, username, opponent }: UseGameStateProp
         if (!winner) {
             const currentPlayer = gameState.activePlayer || white || "";
             let timeValue = gameState.times[currentPlayer];
+
+            console.log("Starting timer for", currentPlayer, timeValue);
             
             // Keep your existing initialization logic
-            if(gameState.times[white || ""] == 0 && gameState.times[sessionStorage.getItem("opponent")??""] == 0) {
+            if(gameState.times[sessionStorage.getItem("username")??""] == 0 && gameState.times[sessionStorage.getItem("opponent")??""] == 0) {
                 timeValue = time ?? totalTime;
             }
+
+            console.log("timeValue",timeValue);
+            
             
             // Start timer for current player if they have time left
             if (timeValue > 0) {
@@ -85,7 +89,12 @@ export const useGameState = ({ totalTime, username, opponent }: UseGameStateProp
                 
                 timerRef.current = setInterval(() => {
                     setGameState(prev => {
-                        const updatedTime = Math.max(0, prev.times[currentPlayer] - 1);
+                        let updatedTime = Math.max(0, prev.times[currentPlayer] - 1);
+                        if(prev.times[sessionStorage.getItem("username")??""] == 0 && prev.times[sessionStorage.getItem("opponent")??""] == 0) {
+                            updatedTime = time ?? totalTime;
+                            gameState.times[sessionStorage.getItem("opponent")??""] = time ?? totalTime;
+                        }
+                        console.log(prev.times[currentPlayer], updatedTime);
                         console.log(`Updated time for ${currentPlayer}:`, updatedTime);
 
                         return {

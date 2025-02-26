@@ -1,4 +1,4 @@
-import React, { useState, FormEvent } from 'react';
+import React, { useState, FormEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
 
@@ -23,14 +23,30 @@ interface DecodedToken {
   exp: number;  // expiration time
 }
 
+interface Notification {
+  message: string;
+  type: 'success' | 'error';
+}
+
 const Auth: React.FC = () => {
   const [isLogin, setIsLogin] = useState<boolean>(true);
   const [formData, setFormData] = useState<User>({
     username: '',
     password: ''
   });
-  const [error, setError] = useState<string>('');
+  const [loading, setLoading] = useState<boolean>(false);
+  const [notification, setNotification] = useState<Notification | null>(null);
   const navigate = useNavigate();
+
+  // Auto-dismiss notification after 5 seconds
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        setNotification(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const { name, value } = e.target;
@@ -52,18 +68,21 @@ const Auth: React.FC = () => {
         sessionStorage.setItem('username', decoded.sub);
         sessionStorage.setItem('tokenExpiration', decoded.exp.toString());
         
-        // You can store additional information from the token if needed
         console.log('Token successfully decoded and stored');
       }
     } catch (error) {
       console.error('Error decoding token:', error);
-      setError('Error processing authentication token');
+      setNotification({
+        message: 'Error processing authentication token',
+        type: 'error'
+      });
     }
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
-    setError('');
+    setNotification(null);
+    setLoading(true);
 
     const endpoint = isLogin ? '/login' : '/register';
     
@@ -88,35 +107,77 @@ const Auth: React.FC = () => {
         // Decode and store token information
         if (authData.access_token) {
           decodeAndStoreToken(authData.access_token);
-          navigate('/');
+          setNotification({
+            message: 'Login successful! Redirecting...',
+            type: 'success'
+          });
+          setTimeout(() => {
+            navigate('/');
+          }, 1500);
         } else {
           throw new Error('No token received from server');
         }
       } else {
-        setError('Registration successful! Please login.');
+        setNotification({
+          message: 'Registration successful! You can now login.',
+          type: 'success'
+        });
         setIsLogin(true);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setNotification({
+        message: err instanceof Error ? err.message : 'An error occurred',
+        type: 'error'
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-md w-96">
-        <h2 className="text-2xl font-bold mb-6 text-center">
-          {isLogin ? 'Login' : 'Sign Up'}
-        </h2>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center p-4">
+      <div className="relative bg-white bg-opacity-10 backdrop-blur-lg p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-200 border-opacity-20">
+        {/* Chess-themed decorative elements */}
+        <div className="absolute -top-6 -left-6 w-12 h-12 bg-black rounded-lg shadow-lg rotate-12"></div>
+        <div className="absolute -top-6 -right-6 w-12 h-12 bg-white rounded-lg shadow-lg -rotate-12"></div>
+        <div className="absolute -bottom-6 -left-6 w-12 h-12 bg-white rounded-lg shadow-lg -rotate-12"></div>
+        <div className="absolute -bottom-6 -right-6 w-12 h-12 bg-black rounded-lg shadow-lg rotate-12"></div>
         
-        {error && (
-          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded">
-            {error}
+        {/* Notification banner */}
+        {notification && (
+          <div 
+            className={`absolute top-0 left-0 right-0 p-4 text-center transform -translate-y-full rounded-t-lg shadow-lg transition-all duration-300 ${
+              notification.type === 'success' 
+                ? 'bg-green-600 text-white' 
+                : 'bg-red-600 text-white'
+            }`}
+          >
+            <div className="flex items-center justify-center">
+              {notification.type === 'success' ? (
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+              ) : (
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+              )}
+              {notification.message}
+            </div>
           </div>
         )}
+        
+        <h2 className="text-3xl font-bold mb-6 text-center text-white">
+          {isLogin ? 'Welcome Back' : 'Join the Game'}
+        </h2>
+        
+        <p className="text-gray-300 text-center mb-8">
+          {isLogin ? 'Sign in to continue your chess journey' : 'Create an account to start playing'}
+        </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-200 mb-1">
               Username
             </label>
             <input
@@ -124,13 +185,15 @@ const Auth: React.FC = () => {
               name="username"
               value={formData.username}
               onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              className="block w-full px-4 py-3 bg-gray-800 bg-opacity-50 border border-gray-700 rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
               required
+              placeholder="Enter your username"
+              disabled={loading}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-200 mb-1">
               Password
             </label>
             <input
@@ -138,29 +201,103 @@ const Auth: React.FC = () => {
               name="password"
               value={formData.password}
               onChange={handleChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              className="block w-full px-4 py-3 bg-gray-800 bg-opacity-50 border border-gray-700 rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
               required
+              placeholder="Enter your password"
+              disabled={loading}
             />
           </div>
 
           <button
             type="submit"
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            disabled={loading}
+            className="w-full flex justify-center py-3 px-4 rounded-lg shadow-lg text-white bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transform hover:scale-105 transition-all duration-300 font-medium text-lg"
           >
-            {isLogin ? 'Login' : 'Sign Up'}
+            {loading ? (
+              <span className="inline-flex items-center">
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Authenticating...
+              </span>
+            ) : (
+              isLogin ? 'Sign In' : 'Create Account'
+            )}
           </button>
         </form>
 
-        <div className="mt-4 text-center">
+        <div className="mt-6 text-center">
           <button
             onClick={() => setIsLogin(!isLogin)}
-            className="text-sm text-indigo-600 hover:text-indigo-500"
+            className="text-blue-300 hover:text-blue-100 transition-colors duration-300"
+            disabled={loading}
           >
             {isLogin
-              ? "Don't have an account? Sign up"
-              : 'Already have an account? Login'}
+              ? "Don't have an account? Sign up now"
+              : 'Already have an account? Sign in'}
           </button>
         </div>
+        
+        {loading && (
+          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+            <div className="bg-white bg-opacity-10 backdrop-blur-md p-6 rounded-xl flex flex-col items-center">
+              <div className="chess-loader">
+                <div className="chess-piece"></div>
+              </div>
+              <p className="mt-4 text-white font-medium">Processing request...</p>
+            </div>
+          </div>
+        )}
+        
+        <div className="mt-8 flex justify-center">
+          <div className="inline-flex space-x-2">
+            <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+            <div className="w-3 h-3 rounded-full bg-gray-600"></div>
+            <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+            <div className="w-3 h-3 rounded-full bg-gray-600"></div>
+            <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+          </div>
+        </div>
+
+        {/* CSS for the chess-themed loader */}
+        <style>{`
+          .chess-loader {
+            position: relative;
+            width: 64px;
+            height: 64px;
+            background: 
+              linear-gradient(45deg, #333 25%, transparent 25%),
+              linear-gradient(-45deg, #333 25%, transparent 25%),
+              linear-gradient(45deg, transparent 75%, #333 75%),
+              linear-gradient(-45deg, transparent 75%, #333 75%);
+            background-size: 32px 32px;
+            background-position: 0 0, 0 16px, 16px -16px, -16px 0px;
+            border-radius: 8px;
+            animation: rotate 2s infinite linear;
+          }
+
+          .chess-piece {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 24px;
+            height: 24px;
+            background-color: #fff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px 2px rgba(255, 255, 255, 0.7);
+          }
+
+          @keyframes rotate {
+            0% {
+              transform: rotate(0deg);
+            }
+            100% {
+              transform: rotate(360deg);
+            }
+          }
+        `}</style>
       </div>
     </div>
   );
