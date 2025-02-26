@@ -14,7 +14,6 @@ export const useWebRTC = ({
     opponent, 
     white, 
     send_offer, 
-    send_answer, 
     send_ice_candidate 
 }: UseWebRTCProps) => {
     const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(null);
