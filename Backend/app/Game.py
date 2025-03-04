@@ -6,42 +6,45 @@ import traceback
 import math
 
 # Get Stockfish path with extensive logging
-stockfish_path = os.getenv("STOCKFISH_PATH", "/app/backend/stockfish/stockfish-ubuntu-x86-64-avx2")
+
+# stockfish_path = os.getenv("STOCKFISH_PATH", "app/backend/stockfish/stockfish-ubuntu-x86-64-avx2")
+stockfish_path = os.getenv("STOCKFISH_PATH", "/usr/local/bin/stockfish")
 
 # Add extensive logging
-print("Stockfish Configuration:")
-print(f"STOCKFISH_PATH: {stockfish_path}")
-print(f"Current Working Directory: {os.getcwd()}")
-print(f"Stockfish exists: {os.path.exists(stockfish_path)}")
-print(f"Stockfish is executable: {os.access(stockfish_path, os.X_OK)}")
+# print("Stockfish Configuration:")
+# print(f"STOCKFISH_PATH: {stockfish_path}")
+# print(f"Current Working Directory: {os.getcwd()}")
+# print(f"Stockfish exists: {os.path.exists(stockfish_path)}")
+# print(f"Stockfish is executable: {os.access(stockfish_path, os.X_OK)}")
 
 class Game:
-    def __init__(self):
-        try:
+    def __init__(self, game_id: int):
+        # try:
             # Add more detailed logging
-            print(f"Attempting to launch Stockfish from: {stockfish_path}")
+        #     print(f"Attempting to launch Stockfish from: {stockfish_path}")
             
-            # Verify file exists and is executable
-            if not os.path.exists(stockfish_path):
-                raise FileNotFoundError(f"Stockfish not found at {stockfish_path}")
+        #     # Verify file exists and is executable
+        #     if not os.path.exists(stockfish_path):
+        #         raise FileNotFoundError(f"Stockfish not found at {stockfish_path}")
             
-            if not os.access(stockfish_path, os.X_OK):
-                raise PermissionError(f"Stockfish at {stockfish_path} is not executable")
+        #     if not os.access(stockfish_path, os.X_OK):
+        #         raise PermissionError(f"Stockfish at {stockfish_path} is not executable")
             
-            # Attempt to launch Stockfish with verbose error handling
-            self.engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
-            print("Stockfish engine successfully launched")
+        #     # Attempt to launch Stockfish with verbose error handling
+        #     self.engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
+        #     print("Stockfish engine successfully launched")
         
-        except Exception as e:
-            print(f"CRITICAL ERROR launching Stockfish: {e}")
-            traceback.print_exc()
+        # except Exception as e:
+        #     print(f"CRITICAL ERROR launching Stockfish: {e}")
+        #     traceback.print_exc()
             
-            # Additional diagnostic information
-            print("\nDiagnostic Information:")
-            print(f"Current User: {os.getuid()}")
-            print(f"File Permissions: {oct(os.stat(stockfish_path).st_mode)[-3:]}")
+        #     # Additional diagnostic information
+        #     print("\nDiagnostic Information:")
+        #     print(f"Current User: {os.getuid()}")
+        #     print(f"File Permissions: {oct(os.stat(stockfish_path).st_mode)[-3:]}")
             
-            raise
+            # raise
+        self.id = game_id
         self.player1 = None
         self.player2 = None
         self.player1_socket = None
@@ -128,43 +131,24 @@ class Game:
         return 50 * (1 + math.tanh(scale_factor * x))
 
     def get_winning_chances(self, evaluation):
-        """
-        Calculate winning chances using sigmoid scaling and proper mate handling.
-        
-        Args:
-            evaluation (float): Position evaluation score
-            
-        Returns:
-            dict: Winning chances for white and black as percentages
-        """
-        # Handle checkmate positions
-        if abs(evaluation) >= self.mate_score:
-            if evaluation > 0:
-                return {"white": 100.0, "black": 0.0}
+        normalized_eval = evaluation / (abs(evaluation) + 1)
+        if(self.flag):
+            if evaluation >= 0:
+                white_chances = round(50 + (normalized_eval * 50), 2)
+                black_chances = round(100 - white_chances, 2)
             else:
-                return {"white": 0.0, "black": 100.0}
-
-        # Handle drawn positions
-        if evaluation == 0:
-            return {"white": 50.0, "black": 50.0}
-
-        # Calculate winning chances using sigmoid scaling
-        if evaluation >= 0:
-            white_chances = round(self.sigmoid_scale(evaluation), 2)
-            black_chances = round(100 - white_chances, 2)
+                black_chances = round(50 + (abs(normalized_eval) * 50), 2)
+                white_chances = round(100 - black_chances, 2)
+            self.flag = False
         else:
-            black_chances = round(self.sigmoid_scale(abs(evaluation)), 2)
-            white_chances = round(100 - black_chances, 2)
-
-        # Handle near-mate positions
-        if abs(evaluation) >= self.near_mate_threshold:
-            if evaluation > 0:
-                white_chances = min(99.9, white_chances)
-                black_chances = 100 - white_chances
+            if evaluation >= 0:
+                black_chances = round(50 + (normalized_eval * 50), 2)
+                white_chances = round(100 - black_chances, 2)
             else:
-                black_chances = min(99.9, black_chances)
-                white_chances = 100 - black_chances
-
+                white_chances = round(50 + (abs(normalized_eval) * 50), 2)
+                black_chances = round(100 - white_chances, 2)
+            self.flag = True
+        
         return {"white": white_chances, "black": black_chances}
 
     def analyze_position(self):

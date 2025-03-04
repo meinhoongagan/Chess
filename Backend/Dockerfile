@@ -1,6 +1,11 @@
 # Use an official Python runtime as a parent image
 FROM python:3.11-slim
 
+# JWT settings
+ENV SECRET_KEY = "By_Order_Of_Peaky_Fucking_Blinders"  # Use a secure, long random string in production
+ENV ALGORITHM = "HS256"
+ENV ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
 # Install required system dependencies for building Stockfish
 RUN apt-get update && apt-get install -y \
     wget \
