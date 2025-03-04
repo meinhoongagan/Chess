@@ -1,32 +1,24 @@
 import os
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from passlib.context import CryptContext
-from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from typing import Optional
-from app.model import User, Token
+
+from fastapi import APIRouter, HTTPException, Depends
+from sqlalchemy.orm import Session
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+
+from app.model import UserCreate, Token, UserDB
+from db.db import get_db
 from dotenv import load_dotenv
 
-
-
-# Load .env file
 load_dotenv()
-
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# Fake in-memory user store for demonstration
-fake_users_db = {}
-
-# Router
-router = APIRouter()
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES"))
 
-
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+router = APIRouter()
 
 # Utility functions
 def get_password_hash(password: str) -> str:
@@ -37,12 +29,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=15))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def get_user(db: Session, username: str):
+    return db.query(UserDB).filter(UserDB.username == username).first()
 
 def decode_access_token(token: str):
     try:
@@ -56,21 +48,42 @@ def decode_access_token(token: str):
 
 # Routes
 @router.post("/register", response_model=dict)
-async def register(user: User):
-    if user.username in fake_users_db:
-        raise HTTPException(status_code=400, detail="Username already exists")
-    hashed_password = get_password_hash(user.password)
-    fake_users_db[user.username] = hashed_password
-    return {"message": "User registered successfully"}
+def register(user: UserCreate, db: Session = Depends(get_db)):
+    try:
+        existing_user = db.query(UserDB).filter(UserDB.username == user.username).first()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Username already exists")
+        
+        hashed_password = get_password_hash(user.password)
+        new_user = UserDB(
+            username=user.username, 
+            email=user.email, 
+            password=hashed_password
+        )
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return {"message": "User registered successfully"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/login", response_model=Token)
-async def login(user: User):
-    hashed_password = fake_users_db.get(user.username)
-    if not hashed_password or not verify_password(user.password, hashed_password):
+def login(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = get_user(db, user.username)
+    if not db_user or not verify_password(user.password, db_user.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    access_token = create_access_token(data={"sub": user.username}, expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
-    return {"access_token": access_token, "token_type": "bearer" , "user": user.username}
+    
+    access_token = create_access_token(
+        data={"sub": db_user.username}, 
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    )
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer", 
+        "user": db_user.username
+    }
 
 @router.get("/protected")
-async def protected_route(token: str = Depends(decode_access_token)):
+def protected_route(token: str = Depends(decode_access_token)):
     return {"message": f"Hello, {token}!"}

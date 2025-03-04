@@ -8,6 +8,9 @@ from app.Game import Game
 from app.TimeControl import TimeControl
 from app.Signaling import Signaling
 from app.auth import router as auth_router
+from db.db import engine , Base
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
