@@ -1,14 +1,17 @@
 from collections import defaultdict
-from fastapi import BackgroundTasks, FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import BackgroundTasks, FastAPI, WebSocket, WebSocketDisconnect , Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from uuid import uuid4 as UUID4
-from app.model import Event
+
+from requests import Session
+from app.utils import save_game
+from app.model import Event , GameDB
 from app.Game import Game
 from app.TimeControl import TimeControl
 from app.Signaling import Signaling
 from app.auth import router as auth_router
-from db.db import engine , Base
+from db.db import engine , Base , get_db
 
 Base.metadata.create_all(bind=engine)
 
@@ -30,6 +33,8 @@ joining_games = {}  # To track joining games keyed by player names
 signaling = Signaling()
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
 
 @app.websocket("/ws")
 async def websocket_endpoint(
@@ -302,6 +307,8 @@ async def websocket_endpoint(
                             "event": "GAME_OVER",
                             "data": {"status": game.get_status(), "winner": winner}
                         })
+                        db = get_db()
+                        save_game(game.id, game.player1, game.player2, game.moves, winner, game.get_status(), db)
                         # Remove game from active_games
                         del active_games[game_id]
                 except Exception as e:
