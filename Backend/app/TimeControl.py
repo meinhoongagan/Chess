@@ -2,6 +2,8 @@ import asyncio
 import time
 import threading
 from app.Game import Game
+from db.db import get_db
+from app.utils import save_game
 
 class TimeControl:
     def __init__(self, total_time=600, increment=10,game = None, active_games = None, game_id=None):
@@ -73,16 +75,21 @@ class TimeControl:
                     self.timer_active = False  # Stop the timer
 
             self.last_move_time = current_time
-            print("Player 1 time:", self.player1_time)
-            print("Player 2 time:", self.player2_time)
-            print(message)
+            # print("Player 1 time:", self.player1_time)
+            # print("Player 2 time:", self.player2_time)
+            # print(message)
 
             if message:
-                del self.active_games[self.game_id]
 
                 # Send the timeout message to both sockets
                 await socket1.send_json(message)
                 await socket2.send_json(message)
+
+                db = get_db()
+                save_game(self.game_id, self.player1, self.player2, self.game.get_moves(), message["data"]["winner"], "timeout", db)
+
+                del self.active_games[self.game_id]
+
                 break  # Exit the loop as the game is over
 
     def _handle_timeout(self, winner: str):
