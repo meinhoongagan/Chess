@@ -8,7 +8,8 @@ import math
 # Get Stockfish path with extensive logging
 
 # stockfish_path = os.getenv("STOCKFISH_PATH", "app/backend/stockfish/stockfish-ubuntu-x86-64-avx2")
-stockfish_path = os.getenv("STOCKFISH_PATH", "/usr/local/bin/stockfish")
+# stockfish_path = "/mnt/c/users/gagan/onedrive/desktop/chess/backend/stockfish/stockfish-ubuntu-x86-64-avx2"
+stockfish_path = os.path.join(os.path.dirname(__file__), '..', 'stockfish', 'stockfish-ubuntu-x86-64-avx2')
 
 # Add extensive logging
 # print("Stockfish Configuration:")
