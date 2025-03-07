@@ -7,44 +7,44 @@ import math
 
 # Get Stockfish path with extensive logging
 
-# stockfish_path = os.getenv("STOCKFISH_PATH", "app/backend/stockfish/stockfish-ubuntu-x86-64-avx2")
+stockfish_path = os.getenv("STOCKFISH_PATH", "app/backend/stockfish/stockfish-ubuntu-x86-64-avx2")
 # stockfish_path = "/mnt/c/users/gagan/onedrive/desktop/chess/backend/stockfish/stockfish-ubuntu-x86-64-avx2"
 # stockfish_path = os.path.join(os.path.dirname(__file__), '..', 'stockfish', 'stockfish-ubuntu-x86-64-avx2')
 
-stockfish_path = "/usr/local/bin/stockfish"
+# stockfish_path = "/usr/local/bin/stockfish"
 
 # Add extensive logging
-# print("Stockfish Configuration:")
-# print(f"STOCKFISH_PATH: {stockfish_path}")
-# print(f"Current Working Directory: {os.getcwd()}")
-# print(f"Stockfish exists: {os.path.exists(stockfish_path)}")
-# print(f"Stockfish is executable: {os.access(stockfish_path, os.X_OK)}")
+print("Stockfish Configuration:")
+print(f"STOCKFISH_PATH: {stockfish_path}")
+print(f"Current Working Directory: {os.getcwd()}")
+print(f"Stockfish exists: {os.path.exists(stockfish_path)}")
+print(f"Stockfish is executable: {os.access(stockfish_path, os.X_OK)}")
 
 class Game:
     def __init__(self, game_id: int):
-        # try:
+        try:
             # Add more detailed logging
-        #     print(f"Attempting to launch Stockfish from: {stockfish_path}")
+            print(f"Attempting to launch Stockfish from: {stockfish_path}")
             
         #     # Verify file exists and is executable
-        #     if not os.path.exists(stockfish_path):
-        #         raise FileNotFoundError(f"Stockfish not found at {stockfish_path}")
+            if not os.path.exists(stockfish_path):
+                raise FileNotFoundError(f"Stockfish not found at {stockfish_path}")
             
-        #     if not os.access(stockfish_path, os.X_OK):
-        #         raise PermissionError(f"Stockfish at {stockfish_path} is not executable")
+            if not os.access(stockfish_path, os.X_OK):
+                raise PermissionError(f"Stockfish at {stockfish_path} is not executable")
             
         #     # Attempt to launch Stockfish with verbose error handling
-        #     self.engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
-        #     print("Stockfish engine successfully launched")
+            self.engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
+            print("Stockfish engine successfully launched")
         
-        # except Exception as e:
-        #     print(f"CRITICAL ERROR launching Stockfish: {e}")
-        #     traceback.print_exc()
+        except Exception as e:
+            print(f"CRITICAL ERROR launching Stockfish: {e}")
+            traceback.print_exc()
             
         #     # Additional diagnostic information
-        #     print("\nDiagnostic Information:")
-        #     print(f"Current User: {os.getuid()}")
-        #     print(f"File Permissions: {oct(os.stat(stockfish_path).st_mode)[-3:]}")
+            print("\nDiagnostic Information:")
+            print(f"Current User: {os.getuid()}")
+            print(f"File Permissions: {oct(os.stat(stockfish_path).st_mode)[-3:]}")
             
             # raise
         self.id = game_id
