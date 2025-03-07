@@ -12,3 +12,4 @@ requests
 sqlalchemy
 jose
 dotenv
+pydantic[email]
