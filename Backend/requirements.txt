@@ -13,3 +13,4 @@ sqlalchemy
 jose
 dotenv
 pydantic[email]
+psycopg2-binary
