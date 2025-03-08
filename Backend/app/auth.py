@@ -33,8 +33,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def get_user(db: Session, username: str):
-    return db.query(UserDB).filter(UserDB.username == username).first()
+def get_user(db: Session, email: str):
+    return db.query(UserDB).filter(UserDB.email == email).first()
 
 def decode_access_token(token: str):
     try:
@@ -70,7 +70,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=Token)
 def login(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = get_user(db, user.username)
+    db_user = get_user(db, user.email)
     if not db_user or not verify_password(user.password, db_user.password):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     

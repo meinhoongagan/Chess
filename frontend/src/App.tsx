@@ -4,7 +4,7 @@ import { useGlobalState } from './GlobalState/Store'
 import { useEffect } from 'react'
 import { Matching } from './components/Matching'
 import { Game } from './pages/Game'
-import  Auth   from './components/Auth'
+import  Auth   from './pages/Auth'
 
 
 
@@ -12,7 +12,7 @@ const App = () => {
 
   const navigate = useNavigate();
 
-  const { socket , set_activePlayer  } = useGlobalState(state => state)
+  const { socket , set_activePlayer , setGameID  } = useGlobalState(state => state)
   useEffect(() => {
     if (!socket) return;
 
@@ -39,7 +39,8 @@ const App = () => {
           sessionStorage.setItem("white",data.turn);
           sessionStorage.setItem("opponent",data.data.opponent);
           set_activePlayer(data.turn);
-          navigate("/game");
+          setGameID(data.data.game_id);
+          navigate(`/game/${data.data.game_id}`);
       }
       if(data.event === "MOVE"){
         console.log("Move turn",data.data.turn);
@@ -60,7 +61,7 @@ const App = () => {
         <Routes>
           <Route path="/" element={<Home/>}/>
           <Route path="/matching" element={<Matching/>}/>
-          <Route path="/game" element={<Game totalTime={0} increment={0}/>}/>
+          <Route path="/game/:gameId" element={<Game totalTime={0} increment={0}/>}/>
           <Route path="/auth" element={<Auth/>}/>
         </Routes>
       // </GamesocketProvider>

@@ -1,13 +1,14 @@
 import { create  } from "zustand";
-import { useNavigate } from "react-router-dom";
 
 interface GlobalState {
     socket: WebSocket | null;
     time: number | null;
     activePlayer: string | null;
     suggestion: boolean;
+    game_id: string | null;
     init_game: (message: any) => void;
     make_move: (message: any) => void;
+    setGameID: (game_id: string) => void;
     setTime: (time: number) => void;
     setSuggestion: (suggestion: boolean) => void;
     set_activePlayer: (activePlayer: string) => void;
@@ -16,17 +17,17 @@ interface GlobalState {
     send_ice_candidate: (target: string , candidate: any) => void;
 }
 
-
 export const useGlobalState = create<GlobalState>((set,get) => ({
     socket: null,
     time: null,
     activePlayer:null,
     suggestion:false,
+    game_id: null,
     init_game: async (message: any) => { 
         let socket = get().socket;
     
         if (!socket || socket.readyState === WebSocket.CLOSED) {
-            socket = new WebSocket("wss://chess-u6el.onrender.com/ws");
+            socket = new WebSocket("ws://localhost:8000/ws");
     
             // Wrap the WebSocket connection in a Promise to await onopen
             await new Promise<void>((resolve, reject) => {
@@ -64,16 +65,12 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
             };
     
             socket.onclose = () => {
-                const navigate = useNavigate();
-                navigate("/")
                 console.log("🔌 WebSocket closed");
-                
             };
     
             set({ socket });
         }
     },
-    
 
     make_move: async (message: any) => {
         let socket = get().socket;
@@ -107,7 +104,8 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
                 JSON.stringify({
                     event: "MOVE",
                     data: {
-                        move: message
+                        move: message,
+                        game_id: get().game_id
                     }
                 })
             );
@@ -115,6 +113,9 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
         } catch (e) {
             console.error("🚨 Error sending message:", e);
         }
+    },
+    setGameID : (game_id: string) => {
+        set({ game_id: game_id });
     },
     setTime : (time: number) => {
         if (time === 0) {
@@ -214,6 +215,5 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
             return;
         }
     },
-
     
 }));

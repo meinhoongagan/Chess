@@ -6,6 +6,7 @@ import { jwtDecode } from 'jwt-decode';
 interface User {
   username: string;
   password: string;
+  email: string;
 }
 
 interface AuthResponse {
@@ -32,7 +33,8 @@ const Auth: React.FC = () => {
   const [isLogin, setIsLogin] = useState<boolean>(true);
   const [formData, setFormData] = useState<User>({
     username: '',
-    password: ''
+    password: '',
+    email: ''
   });
   const [loading, setLoading] = useState<boolean>(false);
   const [notification, setNotification] = useState<Notification | null>(null);
@@ -55,13 +57,12 @@ const Auth: React.FC = () => {
       [name]: value
     }));
   };
-
   const decodeAndStoreToken = (token: string): void => {
     try {
       const decoded = jwtDecode<DecodedToken>(token);
       
       if (decoded) {
-        // Store the token
+        // Keep using sessionStorage as in the original code
         sessionStorage.setItem('token', token);
         
         // Store decoded information
@@ -87,12 +88,24 @@ const Auth: React.FC = () => {
     const endpoint = isLogin ? '/login' : '/register';
     
     try {
-      const response = await fetch(`https://chess-u6el.onrender.com${endpoint}`, {
+      // For login, we only need email and password, but the backend requires a username field
+      // For registration, we need all fields filled out
+      const payload = isLogin 
+        ? { 
+            email: formData.email, 
+            password: formData.password 
+          } 
+        : formData;
+
+      console.log('Payload:', payload);
+      
+      
+      const response = await fetch(`http://localhost:8000${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const data: AuthResponse | AuthError = await response.json();
@@ -176,18 +189,36 @@ const Auth: React.FC = () => {
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          {!isLogin && (
+            <div>
+              <label className="block text-sm font-medium text-gray-200 mb-1">
+                Username
+              </label>
+              <input
+                type="text"
+                name="username"
+                value={formData.username}
+                onChange={handleChange}
+                className="block w-full px-4 py-3 bg-gray-800 bg-opacity-50 border border-gray-700 rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                required={!isLogin}
+                placeholder="Choose a username"
+                disabled={loading}
+              />
+            </div>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-200 mb-1">
-              Username
+              Email
             </label>
             <input
-              type="text"
-              name="username"
-              value={formData.username}
+              type="email"
+              name="email"
+              value={formData.email}
               onChange={handleChange}
               className="block w-full px-4 py-3 bg-gray-800 bg-opacity-50 border border-gray-700 rounded-lg shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
               required
-              placeholder="Enter your username"
+              placeholder="Enter your email"
               disabled={loading}
             />
           </div>

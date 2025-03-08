@@ -63,6 +63,9 @@ export const Game = ({ totalTime, increment }: GameProps) => {
                         break;
                     case "GAME_OVER":
                         handleGameOver(data);
+                        break
+                    case "TIMEOVER":
+                        handleGameOver(data);
                         break;
                     case "OFFER":
                         handleOffer(data);

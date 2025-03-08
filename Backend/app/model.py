@@ -9,7 +9,7 @@ Base = declarative_base()
 
 # Pydantic models for request/response validation
 class UserCreate(BaseModel):
-    username: str
+    username: Optional[str]
     email: EmailStr
     password: str
 
