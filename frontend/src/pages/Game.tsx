@@ -4,9 +4,9 @@ import { ChessBoard } from "../components/ChessBoard";
 import { useGlobalState } from "../GlobalState/Store";
 import WinnerPopup from "../components/WinnerPopup";
 import GameAnalysis from "../components/GameAnalysis";
-import { useWebRTC } from "../components/useWebRTC";
 import { useGameState } from "../components/useGameState";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useWebSocketEvent } from "../utils/WebSocketHandler";
 
 interface GameProps {
     totalTime: number;
@@ -21,6 +21,8 @@ export const Game = ({ totalTime, increment }: GameProps) => {
     const [white, setWhite] = useState<string | null>(null);
     const [isReconnecting, setIsReconnecting] = useState<boolean>(false);
     const [reconnectAttempts, setReconnectAttempts] = useState<number>(0);
+    const [connectionStatus, setConnectionStatus] = useState<'connected'|'disconnected'|'reconnecting'>('connected');
+
     const MAX_RECONNECT_ATTEMPTS = 5;
 
     const {
@@ -37,15 +39,8 @@ export const Game = ({ totalTime, increment }: GameProps) => {
         setGameState
     } = useGameState({ totalTime, increment, socket, suggestion, username, opponent });
 
-    const {
-        localAudioRef,
-        remoteAudioRef,
-        isMuted,
-        toggleLocalAudio,
-        peerConnection
-    } = useWebRTC({ username, opponent, white, send_offer, send_answer, send_ice_candidate });
-
-    const handleMove = (data: any) => {
+    const handleMove = useCallback((data: any) => {
+        console.log("♟️ Move event handled in Game component", data);
         const newTurn = data.data.turn;
         sessionStorage.setItem("turn", newTurn);
 
@@ -66,41 +61,74 @@ export const Game = ({ totalTime, increment }: GameProps) => {
         setMoveEvaluations((prev: number[]) => [...prev, data.evaluation]);
         chess.move(data.data.move);
         setBoard(chess.board());
-    };
+    }, [chess, setBoard, setGameState, setMoveEvaluations, suggestion]);
 
-    const handleGameOver = (data: any) => {
+    const handleGameOver = useCallback((data: any) => {
+        console.log("🏁 Game over event handled in Game component", data);
         setWinner(data.data.winner);
-    };
+    }, [setWinner]);
 
-    const handleOffer = async (data: any) => {
-        if (!peerConnection) return;
-        try {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.data.offer));
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-            send_answer(opponent ?? "", answer);
-        } catch (error) {
-            console.error("Error processing offer:", error);
+    const handleGameState = useCallback((data: any) => {
+        console.log("🔄 Game state event handled in Game component", data);
+        
+        // Reset chess and replay moves
+        chess.reset();
+        if (data.data.moves && Array.isArray(data.data.moves)) {
+            data.data.moves.forEach((move: string) => {
+                try {
+                    chess.move(move);
+                } catch (e) {
+                    console.error("Error replaying move:", move, e);
+                }
+            });
         }
-    };
+        
+        // Update board state
+        setBoard(chess.board());
+        
+        // Update turn information
+        const currentTurn = data.data.turn;
+        sessionStorage.setItem("turn", currentTurn);
+        
+        // Update timers if available
+        const timers = data.data.times || {};
+        
+        // Update game state
+        setGameState(prevState => ({
+            ...prevState,
+            activePlayer: currentTurn,
+            times: timers,
+            // Preserve other state that might not be in the reconnect data
+            moveHistory: prevState.moveHistory,
+            currentEvaluation: prevState.currentEvaluation,
+            winningChances: prevState.winningChances,
+            suggestion: prevState.suggestion,
+            showSuggestion: suggestion
+        }));
+        
+        console.log("🔄 Game state restored successfully");
+    }, [chess, setBoard, setGameState, suggestion]);
 
-    const handleAnswer = async (data: any) => {
-        if (!peerConnection || peerConnection.signalingState === "stable") return;
-        try {
-            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.data.answer));
-        } catch (error) {
-            console.error("Error processing answer:", error);
+    const handleReconnection = useCallback((data: any) => {
+        console.log("🔄 Reconnection successful in Game component!", data);
+        
+        // If we have gameState embedded in the reconnection event
+        if (data.data && data.data.gameState) {
+            handleGameState(data.data.gameState);
         }
-    };
+        
+        // Reset reconnect attempts
+        setReconnectAttempts(0);
+        setIsReconnecting(false);
+        setConnectionStatus('connected');
+    }, [handleGameState]);
 
-    const handleIceCandidate = async (data: any) => {
-        if (!peerConnection || !data.data.candidate) return;
-        try {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(data.data.candidate));
-        } catch (error) {
-            console.error("Error adding ICE Candidate:", error);
-        }
-    };
+    // Register WebSocket event handlers using the centralized system
+    useWebSocketEvent('MOVE', handleMove);
+    useWebSocketEvent('GAME_OVER', handleGameOver);
+    useWebSocketEvent('TIMEOUT', handleGameOver);
+    useWebSocketEvent('GAME_STATE', handleGameState);
+    useWebSocketEvent('RECONNECTED', handleReconnection);
 
     const handleSquareClick = (square: string, piece: { square: Square; type: PieceSymbol; color: Color } | null) => {
         try {
@@ -198,7 +226,7 @@ export const Game = ({ totalTime, increment }: GameProps) => {
         return () => {
             window.removeEventListener('beforeunload', saveGameState);
         };
-    }, []);
+    }, [game_id, reconnect_game]);
 
     const saveGameState = () => {
         if (game_id) {
@@ -207,126 +235,47 @@ export const Game = ({ totalTime, increment }: GameProps) => {
     };
 
     useEffect(() => {
-        if (!socket && game_id && !isReconnecting && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-            console.log("🔍 Socket connection lost, attempting to reconnect...");
-            setIsReconnecting(true);
+        if (!socket && game_id && connectionStatus !== 'reconnecting' && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            console.log("🔍 Socket connection lost, attempting to reconnect...", game_id);
+            setConnectionStatus('reconnecting');
             
             const reconnectTimer = setTimeout(() => {
+                console.log("🔄 Attempting reconnection...", reconnectAttempts + 1, "of", MAX_RECONNECT_ATTEMPTS);
                 reconnect_game({ gameId: game_id });
                 setReconnectAttempts(prev => prev + 1);
-                setIsReconnecting(false);
-            }, 2000); // Wait 2 seconds between reconnection attempts
+                
+                // If we reach max attempts, stop trying
+                if (reconnectAttempts + 1 >= MAX_RECONNECT_ATTEMPTS) {
+                    console.log("❌ Max reconnection attempts reached");
+                    setConnectionStatus('disconnected');
+                }
+            }, Math.min(2000 * (reconnectAttempts + 1), 10000)); // Exponential backoff with a cap
             
             return () => clearTimeout(reconnectTimer);
         }
-    }, [socket, game_id, isReconnecting, reconnectAttempts]);
+    }, [socket, game_id, connectionStatus, reconnectAttempts, reconnect_game]);
 
     useEffect(() => {
         if (socket && socket.readyState === WebSocket.OPEN) {
+            console.log("✅ Connection established/restored");
             setReconnectAttempts(0);
-            setIsReconnecting(false);
+            setConnectionStatus('connected');
         }
     }, [socket]);
 
-    useEffect(() => {
-        if (!socket) return;
-
-        socket.onmessage = async (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                console.log("📩 Received message:", data.event, data);
-
-                switch (data.event) {
-                    case "RECONNECTED":
-                        handleReconnection(data);
-                        break;
-                    case "MOVE":
-                        handleMove(data);
-                        break;
-                    case "GAME_OVER":
-                        handleGameOver(data);
-                        break
-                    case "TIMEOVER":
-                        handleGameOver(data);
-                        break;
-                    case "OFFER":
-                        handleOffer(data);
-                        break;
-                    case "ANSWER":
-                        handleAnswer(data);
-                        break;
-                    case "ICE_CANDIDATE":
-                        handleIceCandidate(data);
-                        break;
-                }
-            } catch (error) {
-                console.error("Error processing message:", error);
-            }
-        };
-
-        socket.onerror = (error) => {
-            console.error("⚠️ WebSocket error occurred:", error);
-        };
-        socket.onclose = (event) => {
-            console.log("🔌 WebSocket closed in Game component:", event);
-            
-            if (!event.wasClean && game_id) {
-                console.log("⚠️ Connection closed unexpectedly, attempting to reconnect...");
-                setIsReconnecting(true);
-                
-                setTimeout(() => {
-                    reconnect_game({ gameId: game_id });
-                    setReconnectAttempts(prev => prev + 1);
-                    setIsReconnecting(false);
-                }, 2000);
-            }
-        };
-    }, [socket, peerConnection, chess, game_id]);
-    
-
-    const handleReconnection = (data: any) => {
-        console.log("🔄 Reconnection successful!", data);
-        
-        // Restore game state from server data
-        if (data.data.gameState) {
-            // Update chess board with moves from server
-            const moves = data.data.gameState.moves || [];
-            
-            // Reset chess and replay moves
-            chess.reset();
-            moves.forEach((move: string) => {
-                chess.move(move);
-            });
-            
-            setBoard(chess.board());
-            
-            // Update other game state properties
-            setGameState(prevState => ({
-                ...prevState,
-                activePlayer: data.data.gameState.turn,
-                times: data.data.gameState.times,
-                moveHistory: data.data.gameState.moveHistory || [],
-                currentEvaluation: data.data.gameState.evaluation || 0,
-                winningChances: data.data.gameState.winningChances || { white: 50, black: 50 }
-            }));
-            
-            // Update session storage
-            sessionStorage.setItem("turn", data.data.gameState.turn);
-        }
-    }
-        
-
     return (
         <div className="grid grid-cols-5 h-screen justify-center items-center bg-gradient-to-br from-[#0f172a] via-[#1e3a8a] to-[#581c87]">
-            <audio ref={localAudioRef} autoPlay playsInline />
-            <audio ref={remoteAudioRef} autoPlay playsInline />
+            {connectionStatus === 'reconnecting' && (
+                <div className="absolute top-0 left-0 right-0 bg-yellow-500 text-white p-2 text-center">
+                    Reconnecting to game... Attempt {reconnectAttempts + 1}/{MAX_RECONNECT_ATTEMPTS}
+                </div>
+            )}
             
-            <button 
-                onClick={toggleLocalAudio} 
-                className="absolute top-4 left-4 bg-blue-500 hover:bg-blue-600 text-white p-2 rounded transition-colors"
-            >
-                {isMuted ? "Unmute" : "Mute"} Mic
-            </button>
+            {connectionStatus === 'disconnected' && (
+                <div className="absolute top-0 left-0 right-0 bg-red-500 text-white p-2 text-center">
+                    Connection lost. Please refresh the page to try again.
+                </div>
+            )}
 
             {winner && 
                 <WinnerPopup 

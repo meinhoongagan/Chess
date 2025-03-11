@@ -213,7 +213,7 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
         try {
             socket.send(
                 JSON.stringify({
-                    event: "RECONNECT_GAME",
+                    event: "RECONNECT",
                     data: {
                         player_name: sessionStorage.getItem("username"),
                         game_id: message.gameId || get().game_id // Use existing game_id if not provided
@@ -221,7 +221,7 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
                 })
             );
             console.log(JSON.stringify({
-                event: "RECONNECT_GAME",
+                event: "RECONNECT",
                 data: {
                     player_name: sessionStorage.getItem("username"),
                     game_id: message.gameId || get().game_id // Use existing game_id if not provided
