@@ -56,7 +56,7 @@ export const useGameState = ({ totalTime, username, opponent }: UseGameStateProp
                     [sessionStorage.getItem("opponent")??""]: time ?? totalTime
                 }
             };
-            console.log("After initial state setup:", newState);
+            // console.log("After initial state setup:", newState);
             return newState;
         });
     }, [username, opponent, totalTime, white]);
@@ -71,21 +71,26 @@ export const useGameState = ({ totalTime, username, opponent }: UseGameStateProp
         // Only start timer if there's no winner
         if (!winner) {
             const currentPlayer = gameState.activePlayer || white || "";
+            if(!currentPlayer || !gameState.times) return;
+            // console.log("currentPlayer",currentPlayer);
+            // console.log("gameState",gameState);
+            
+            
             let timeValue = gameState.times[currentPlayer];
 
-            console.log("Starting timer for", currentPlayer, timeValue);
+            // console.log("Starting timer for", currentPlayer, timeValue);
             
             // Keep your existing initialization logic
             if(gameState.times[sessionStorage.getItem("username")??""] == 0 && gameState.times[sessionStorage.getItem("opponent")??""] == 0) {
                 timeValue = time ?? totalTime;
             }
 
-            console.log("timeValue",timeValue);
+            // console.log("timeValue",timeValue);
             
             
             // Start timer for current player if they have time left
             if (timeValue > 0) {
-                console.log(`Starting timer for ${currentPlayer}`);
+                // console.log(`Starting timer for ${currentPlayer}`);
                 
                 timerRef.current = setInterval(() => {
                     setGameState(prev => {
@@ -94,8 +99,8 @@ export const useGameState = ({ totalTime, username, opponent }: UseGameStateProp
                             updatedTime = time ?? totalTime;
                             gameState.times[sessionStorage.getItem("opponent")??""] = time ?? totalTime;
                         }
-                        console.log(prev.times[currentPlayer], updatedTime);
-                        console.log(`Updated time for ${currentPlayer}:`, updatedTime);
+                        // console.log(prev.times[currentPlayer], updatedTime);
+                        // console.log(`Updated time for ${currentPlayer}:`, updatedTime);
 
                         return {
                             ...prev,

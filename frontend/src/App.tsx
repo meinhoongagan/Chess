@@ -3,6 +3,7 @@ import { Home } from './pages/Home'
 import { useGlobalState } from './GlobalState/Store'
 import { useEffect } from 'react'
 import { Matching } from './components/Matching'
+import { Waiting } from './components/Waiting'
 import { Game } from './pages/Game'
 import  Auth   from './pages/Auth'
 
@@ -63,6 +64,7 @@ const App = () => {
           <Route path="/matching" element={<Matching/>}/>
           <Route path="/game/:gameId" element={<Game totalTime={0} increment={0}/>}/>
           <Route path="/auth" element={<Auth/>}/>
+          <Route path="/waiting" element={<Waiting />} />
         </Routes>
       // </GamesocketProvider>
   )

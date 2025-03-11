@@ -15,16 +15,13 @@ interface GameProps {
 
 export const Game = ({ totalTime, increment }: GameProps) => {
     const navigate = useNavigate();
-    const { make_move, socket, suggestion, send_offer, send_answer, send_ice_candidate } = useGlobalState(state => state);
+    const { make_move, socket, suggestion, send_offer, send_answer, send_ice_candidate, reconnect_game, game_id } = useGlobalState(state => state);
     const [username, setUsername] = useState<string | null>(null);
     const [opponent, setOpponent] = useState<string | null>(null);
     const [white, setWhite] = useState<string | null>(null);
-
-    useEffect(() => {
-        setUsername(sessionStorage.getItem("username"));
-        setOpponent(sessionStorage.getItem("opponent"));
-        setWhite(sessionStorage.getItem("white"));
-    }, []);
+    const [isReconnecting, setIsReconnecting] = useState<boolean>(false);
+    const [reconnectAttempts, setReconnectAttempts] = useState<number>(0);
+    const MAX_RECONNECT_ATTEMPTS = 5;
 
     const {
         chess,
@@ -47,41 +44,6 @@ export const Game = ({ totalTime, increment }: GameProps) => {
         toggleLocalAudio,
         peerConnection
     } = useWebRTC({ username, opponent, white, send_offer, send_answer, send_ice_candidate });
-
-    // WebSocket message handler
-    useEffect(() => {
-        if (!socket) return;
-
-        socket.onmessage = async (event) => {
-            try {
-                const data = JSON.parse(event.data);
-
-                switch (data.event) {
-                    case "MOVE":
-                        console.log(data);
-                        handleMove(data);
-                        break;
-                    case "GAME_OVER":
-                        handleGameOver(data);
-                        break
-                    case "TIMEOVER":
-                        handleGameOver(data);
-                        break;
-                    case "OFFER":
-                        handleOffer(data);
-                        break;
-                    case "ANSWER":
-                        handleAnswer(data);
-                        break;
-                    case "ICE_CANDIDATE":
-                        handleIceCandidate(data);
-                        break;
-                }
-            } catch (error) {
-                console.error("Error processing message:", error);
-            }
-        };
-    }, [socket, peerConnection, chess]);
 
     const handleMove = (data: any) => {
         const newTurn = data.data.turn;
@@ -218,6 +180,141 @@ export const Game = ({ totalTime, increment }: GameProps) => {
             }
         }
     };
+
+    useEffect(() => {
+        setUsername(sessionStorage.getItem("username"));
+        setOpponent(sessionStorage.getItem("opponent"));
+        setWhite(sessionStorage.getItem("white"));
+        const savedGameId = sessionStorage.getItem("game_id");
+        if (savedGameId && !game_id) {
+            // If we have a game_id in sessionStorage but not in state, attempt to reconnect
+            console.log("💾 Found saved game_id in session, attempting reconnection:", savedGameId);
+            reconnect_game({ gameId: savedGameId });
+        }
+        
+        // Set up window beforeunload to save game state
+        window.addEventListener('beforeunload', saveGameState);
+        
+        return () => {
+            window.removeEventListener('beforeunload', saveGameState);
+        };
+    }, []);
+
+    const saveGameState = () => {
+        if (game_id) {
+            sessionStorage.setItem("game_id", game_id);
+        }
+    };
+
+    useEffect(() => {
+        if (!socket && game_id && !isReconnecting && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            console.log("🔍 Socket connection lost, attempting to reconnect...");
+            setIsReconnecting(true);
+            
+            const reconnectTimer = setTimeout(() => {
+                reconnect_game({ gameId: game_id });
+                setReconnectAttempts(prev => prev + 1);
+                setIsReconnecting(false);
+            }, 2000); // Wait 2 seconds between reconnection attempts
+            
+            return () => clearTimeout(reconnectTimer);
+        }
+    }, [socket, game_id, isReconnecting, reconnectAttempts]);
+
+    useEffect(() => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            setReconnectAttempts(0);
+            setIsReconnecting(false);
+        }
+    }, [socket]);
+
+    useEffect(() => {
+        if (!socket) return;
+
+        socket.onmessage = async (event) => {
+            try {
+                const data = JSON.parse(event.data);
+                console.log("📩 Received message:", data.event, data);
+
+                switch (data.event) {
+                    case "RECONNECTED":
+                        handleReconnection(data);
+                        break;
+                    case "MOVE":
+                        handleMove(data);
+                        break;
+                    case "GAME_OVER":
+                        handleGameOver(data);
+                        break
+                    case "TIMEOVER":
+                        handleGameOver(data);
+                        break;
+                    case "OFFER":
+                        handleOffer(data);
+                        break;
+                    case "ANSWER":
+                        handleAnswer(data);
+                        break;
+                    case "ICE_CANDIDATE":
+                        handleIceCandidate(data);
+                        break;
+                }
+            } catch (error) {
+                console.error("Error processing message:", error);
+            }
+        };
+
+        socket.onerror = (error) => {
+            console.error("⚠️ WebSocket error occurred:", error);
+        };
+        socket.onclose = (event) => {
+            console.log("🔌 WebSocket closed in Game component:", event);
+            
+            if (!event.wasClean && game_id) {
+                console.log("⚠️ Connection closed unexpectedly, attempting to reconnect...");
+                setIsReconnecting(true);
+                
+                setTimeout(() => {
+                    reconnect_game({ gameId: game_id });
+                    setReconnectAttempts(prev => prev + 1);
+                    setIsReconnecting(false);
+                }, 2000);
+            }
+        };
+    }, [socket, peerConnection, chess, game_id]);
+    
+
+    const handleReconnection = (data: any) => {
+        console.log("🔄 Reconnection successful!", data);
+        
+        // Restore game state from server data
+        if (data.data.gameState) {
+            // Update chess board with moves from server
+            const moves = data.data.gameState.moves || [];
+            
+            // Reset chess and replay moves
+            chess.reset();
+            moves.forEach((move: string) => {
+                chess.move(move);
+            });
+            
+            setBoard(chess.board());
+            
+            // Update other game state properties
+            setGameState(prevState => ({
+                ...prevState,
+                activePlayer: data.data.gameState.turn,
+                times: data.data.gameState.times,
+                moveHistory: data.data.gameState.moveHistory || [],
+                currentEvaluation: data.data.gameState.evaluation || 0,
+                winningChances: data.data.gameState.winningChances || { white: 50, black: 50 }
+            }));
+            
+            // Update session storage
+            sessionStorage.setItem("turn", data.data.gameState.turn);
+        }
+    }
+        
 
     return (
         <div className="grid grid-cols-5 h-screen justify-center items-center bg-gradient-to-br from-[#0f172a] via-[#1e3a8a] to-[#581c87]">

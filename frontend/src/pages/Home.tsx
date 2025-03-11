@@ -7,11 +7,13 @@ import { useNavigate } from "react-router-dom";
 export const Home = () => {
   const [board] = useState(new Chess().board());
   const navigate = useNavigate();
-  const { init_game, setTime, setSuggestion } = useGlobalState((state) => state);
+  const { init_game, setTime,create_game , setSuggestion , join_game } = useGlobalState((state) => state);
   const [totalTime, setTotalTime] = useState(300);
   const [increment, setIncrement] = useState(5);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showAnimation, setShowAnimation] = useState(false);
+  const [showJoinGameModal, setShowJoinGameModal] = useState(false);
+  const [gameId, setGameId] = useState("");
 
   useEffect(() => {
     setIsLoggedIn(!!sessionStorage.getItem("token"));
@@ -19,7 +21,7 @@ export const Home = () => {
     setTimeout(() => setShowAnimation(true), 100);
   }, []);
 
-  const handleGameStart = () => {
+  const handleStartMatchmaking = () => {
     if (!isLoggedIn) {
       navigate("/auth");
       return;
@@ -27,6 +29,52 @@ export const Home = () => {
     init_game({ totalTime, increment });
     setTime(totalTime);
     navigate("/matching", { state: { totalTime, increment } });
+  };
+
+  const handleCreateGame = () => {
+    if (!isLoggedIn) {
+      navigate("/auth");
+      return;
+    }
+    // init_game({ totalTime, increment });
+    try{
+      create_game({ totalTime, increment });
+    
+      navigate("/waiting", { state: { totalTime, increment, isCreating: true } });
+      setTime(totalTime);
+    }catch(error){
+      console.log(error);
+    }
+    
+  };
+
+  const handleJoinGame = () => {
+    if (!isLoggedIn) {
+      navigate("/auth");
+      return;
+    }
+    setShowJoinGameModal(true);
+  };
+
+  const submitJoinGame = () => {
+    if (!gameId.trim()) {
+      alert("Please enter a valid game ID");
+      return;
+    }
+    console.log("Joining game with ID:", gameId);
+    
+    try{
+      join_game({gameId});
+      setTime(totalTime);
+      
+      // Send join game event to the websocket
+     
+      navigate("/waiting", { state: { totalTime, increment, isCreating: false, gameId } });
+      
+      setShowJoinGameModal(false);
+    }catch(error){
+      console.log(error);
+    }
   };
 
   return (
@@ -118,16 +166,40 @@ export const Home = () => {
           </label>
         </div>
 
-        {/* Join Game Button */}
-        <button
-          className="w-full text-white font-bold text-lg p-4 mt-8 bg-gradient-to-r from-green-700 to-green-500 rounded-lg shadow-lg hover:shadow-green-500/30 hover:scale-105 transition-all duration-300 relative overflow-hidden group"
-          onClick={handleGameStart}
-        >
-          <span className="absolute -inset-x-3 bottom-0 h-1 bg-green-300 opacity-30 group-hover:h-full group-hover:opacity-10 transition-all duration-500"></span>
-          <span className="relative flex items-center justify-center">
-            🚀 {isLoggedIn ? "Join Game" : "Login to Play"}
-          </span>
-        </button>
+        <div className="mt-8 space-y-4">
+          {/* Play Button (Matchmaking) */}
+          <button
+            className="w-full text-white font-bold text-lg p-4 bg-gradient-to-r from-green-700 to-green-500 rounded-lg shadow-lg hover:shadow-green-500/30 hover:scale-105 transition-all duration-300 relative overflow-hidden group"
+            onClick={handleStartMatchmaking}
+          >
+            <span className="absolute -inset-x-3 bottom-0 h-1 bg-green-300 opacity-30 group-hover:h-full group-hover:opacity-10 transition-all duration-500"></span>
+            <span className="relative flex items-center justify-center">
+              🚀 {isLoggedIn ? "Quick Match" : "Login to Play"}
+            </span>
+          </button>
+          
+          {/* Create Game Button */}
+          <button
+            className="w-full text-white font-bold text-lg p-4 bg-gradient-to-r from-blue-700 to-blue-500 rounded-lg shadow-lg hover:shadow-blue-500/30 hover:scale-105 transition-all duration-300 relative overflow-hidden group"
+            onClick={handleCreateGame}
+          >
+            <span className="absolute -inset-x-3 bottom-0 h-1 bg-blue-300 opacity-30 group-hover:h-full group-hover:opacity-10 transition-all duration-500"></span>
+            <span className="relative flex items-center justify-center">
+              🏆 Create Game
+            </span>
+          </button>
+          
+          {/* Join Game Button */}
+          <button
+            className="w-full text-white font-bold text-lg p-4 bg-gradient-to-r from-purple-700 to-purple-500 rounded-lg shadow-lg hover:shadow-purple-500/30 hover:scale-105 transition-all duration-300 relative overflow-hidden group"
+            onClick={handleJoinGame}
+          >
+            <span className="absolute -inset-x-3 bottom-0 h-1 bg-purple-300 opacity-30 group-hover:h-full group-hover:opacity-10 transition-all duration-500"></span>
+            <span className="relative flex items-center justify-center">
+              🔗 Join Game
+            </span>
+          </button>
+        </div>
 
         {!isLoggedIn && (
           <p className="text-gray-400 text-center mt-3 text-sm">
@@ -135,6 +207,39 @@ export const Home = () => {
           </p>
         )}
       </div>
+      
+      {/* Join Game Modal */}
+      {showJoinGameModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-[#0f172a] p-6 rounded-xl border border-gray-600 w-full max-w-md">
+            <h3 className="text-white text-xl font-bold mb-4">Join Game</h3>
+            <input
+              type="text"
+              placeholder="Enter Game ID"
+              className="w-full text-white p-3 mb-4 bg-[#1e293b] rounded-lg border border-gray-500 focus:ring-2 focus:ring-purple-400"
+              value={gameId}
+              onChange={(e) => {
+                console.log("game_id is",e.target.value);
+                setGameId(e.target.value)
+              }}
+            />
+            <div className="flex justify-end space-x-3">
+              <button
+                className="px-4 py-2 rounded-lg bg-gray-700 text-white hover:bg-gray-600 transition-colors"
+                onClick={() => setShowJoinGameModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-500 transition-colors"
+                onClick={submitJoinGame}
+              >
+                Join
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

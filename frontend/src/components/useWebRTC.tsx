@@ -29,11 +29,11 @@ export const useWebRTC = ({
             return;
         }
 
-        console.log("Setting up WebRTC with:", {username, opponent, white});
+        // console.log("Setting up WebRTC with:", {username, opponent, white});
 
         const setupWebRTC = async () => {
             try {
-                console.log("Creating RTCPeerConnection");
+                // console.log("Creating RTCPeerConnection");
                 const pc = new RTCPeerConnection({
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
@@ -43,21 +43,21 @@ export const useWebRTC = ({
                 });
                 
                 pc.onconnectionstatechange = () => {
-                    console.log("📡 Connection State:", pc.connectionState);
+                    // console.log("📡 Connection State:", pc.connectionState);
                 };
     
                 pc.oniceconnectionstatechange = () => {
-                    console.log("❄️ ICE Connection State:", pc.iceConnectionState);
+                    // console.log("❄️ ICE Connection State:", pc.iceConnectionState);
                 };
     
                 pc.onicecandidate = (event) => {
                     if (event.candidate) {
-                        console.log('Sending ICE candidate to:', opponent);
+                        // console.log('Sending ICE candidate to:', opponent);
                         send_ice_candidate(opponent, event.candidate);
                     }
                 };
     
-                console.log("Getting user media");
+                // console.log("Getting user media");
                 const stream = await navigator.mediaDevices.getUserMedia({
                     audio: {
                         echoCancellation: true,
@@ -72,18 +72,18 @@ export const useWebRTC = ({
                 });
                 
                 if (localAudioRef.current) {
-                    console.log("Setting local audio stream");
+                    // console.log("Setting local audio stream");
                     localAudioRef.current.srcObject = stream;
                     localAudioRef.current.muted = true; // Local audio is always muted to prevent feedback
                 }
     
                 stream.getTracks().forEach(track => {
-                    console.log("Adding track to peer connection:", track.kind);
+                    // console.log("Adding track to peer connection:", track.kind);
                     pc.addTrack(track, stream);
                 });
     
                 pc.ontrack = (event) => {
-                    console.log("Received remote track:", event.track.kind);
+                    // console.log("Received remote track:", event.track.kind);
                     if (remoteAudioRef.current) {
                         remoteAudioRef.current.srcObject = event.streams[0];
                     }
@@ -94,7 +94,7 @@ export const useWebRTC = ({
                 
                 // The white player initiates the call
                 if (white === username) {
-                    console.log("I am white, creating offer");
+                    // console.log("I am white, creating offer");
                     setTimeout(async () => {
                         try {
                             const offer = await pc.createOffer({
@@ -120,14 +120,14 @@ export const useWebRTC = ({
         setupWebRTC();
     
         return () => {
-            console.log("Cleaning up WebRTC resources");
+            // console.log("Cleaning up WebRTC resources");
             localStream?.getTracks().forEach(track => {
-                console.log("Stopping track:", track.kind);
+                // console.log("Stopping track:", track.kind);
                 track.stop();
             });
             
             if (peerConnection) {
-                console.log("Closing peer connection");
+                // console.log("Closing peer connection");
                 peerConnection.close();
             }
         };
@@ -139,7 +139,7 @@ export const useWebRTC = ({
             if (audioTracks.length > 0) {
                 const audioTrack = audioTracks[0];
                 audioTrack.enabled = !audioTrack.enabled;
-                console.log("Local audio track enabled:", audioTrack.enabled);
+                // console.log("Local audio track enabled:", audioTrack.enabled);
                 setIsMuted(!audioTrack.enabled);
             }
         }
