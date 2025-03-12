@@ -15,7 +15,7 @@ interface GameProps {
 
 export const Game = ({ totalTime, increment }: GameProps) => {
     const navigate = useNavigate();
-    const { make_move, socket, suggestion, send_offer, send_answer, send_ice_candidate, reconnect_game, game_id } = useGlobalState(state => state);
+    const { make_move, socket, suggestion, send_offer, send_answer, send_ice_candidate, reconnect_game, game_id , setGameID } = useGlobalState(state => state);
     const [username, setUsername] = useState<string | null>(null);
     const [opponent, setOpponent] = useState<string | null>(null);
     const [white, setWhite] = useState<string | null>(null);
@@ -89,6 +89,7 @@ export const Game = ({ totalTime, increment }: GameProps) => {
         // Update turn information
         const currentTurn = data.data.turn;
         sessionStorage.setItem("turn", currentTurn);
+        setGameID(data.data.game_id);
         
         // Update timers if available
         const timers = data.data.times || {};
@@ -116,7 +117,6 @@ export const Game = ({ totalTime, increment }: GameProps) => {
         if (data.data && data.data.gameState) {
             handleGameState(data.data.gameState);
         }
-        
         // Reset reconnect attempts
         setReconnectAttempts(0);
         setIsReconnecting(false);

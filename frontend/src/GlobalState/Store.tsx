@@ -247,6 +247,7 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
         };
         
         set({ socket });
+        console.log("new socket is :",socket)
     },
     make_move: async (message: any) => {
         let socket = get().socket;
@@ -255,6 +256,8 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
             console.error("❌ WebSocket instance is missing.");
             return;
         }
+
+        console.log("Making Move After Reconnection");
     
         if (socket.readyState === WebSocket.CONNECTING) {
             console.log("⏳ WebSocket is still connecting, waiting...");
@@ -285,6 +288,7 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
                     }
                 })
             );
+            console.log(get().game_id);
             console.log("📡 MOVE sent successfully!");
         } catch (e) {
             console.error("🚨 Error sending message:", e);

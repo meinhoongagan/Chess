@@ -56,11 +56,11 @@ export const ChessBoard = ({
 
     // Ensure timer starts for white player
     const currentActivePlayer = activePlayer || white;
-    console.log("currentActivePlayer",currentActivePlayer);
-    console.log("oppo",opponent);
-    console.log("user",username);
-    console.log(" is opponent ",currentActivePlayer == opponent);
-    console.log("is username ",currentActivePlayer == username);
+    // console.log("currentActivePlayer",currentActivePlayer);
+    // console.log("oppo",opponent);
+    // console.log("user",username);
+    // console.log(" is opponent ",currentActivePlayer == opponent);
+    // console.log("is username ",currentActivePlayer == username);
     
     
     
@@ -73,7 +73,7 @@ export const ChessBoard = ({
     const shouldReverseBoard = reverse || playerColor === "b";
     const displayBoard = shouldReverseBoard ? board.slice().reverse() : board;
     useEffect(() => {
-        console.log("ChessBoard received times:", times);
+        // console.log("ChessBoard received times:", times);
     }, [times]);
 
     const TimerDisplay = ({ player, username, playerColor, isActive }: { 
