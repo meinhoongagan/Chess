@@ -5,17 +5,30 @@ interface ChessMove {
     evaluation: number;
 }
 
+interface WinningChances {
+    white: number;
+    black: number;
+}
+
+interface GameAnalysisProps {
+    evaluation?: number;
+    winningChances?: WinningChances;
+    moveHistory?: ChessMove[];
+    suggestions?: string;
+    showSuggestion?: boolean;
+}
+
 const GameAnalysis = ({ 
     evaluation = 0,
     winningChances = { white: 50, black: 50 },
     moveHistory = [] as ChessMove[],
     suggestions = "",
     showSuggestion = false
-}) => {
+}: GameAnalysisProps) => {
+    // Properly calculate evaluation bar height based on winning chances
     const getEvalBarHeight = () => {
-        const clampedEval = Math.max(-5, Math.min(5, evaluation));
-        const percentage = (50 + (clampedEval * 10));
-        return `${percentage}%`;
+        // Use winning chances directly instead of converting evaluation
+        return `${winningChances.white}%`;
     };
 
     const groupedMoves = moveHistory.reduce((acc, move, index) => {
@@ -33,19 +46,25 @@ const GameAnalysis = ({
 
     const MoveCell = ({ move }: { move: ChessMove | null }) => {
         if (!move) return <div className="h-8" />;
+        
+        // Only display evaluation if it's not exactly 0
+        const showEvaluation = move.evaluation !== 0;
+        
         return (
             <div className="flex items-center justify-between p-2 hover:bg-[#1e3a8a] rounded">
                 <span className="flex-1">{move.san}</span>
-                <div className="flex items-center gap-1">
-                    <span className="text-sm text-gray-400">
-                        {move.evaluation > 0 ? '+' : ''}{move.evaluation.toFixed(2)}
-                    </span>
-                    {move.evaluation > 0 ? (
-                        <ChevronUp className="w-4 h-4 text-green-500" />
-                    ) : (
-                        <ChevronDown className="w-4 h-4 text-red-500" />
-                    )}
-                </div>
+                {showEvaluation && (
+                    <div className="flex items-center gap-1">
+                        <span className="text-sm text-gray-400">
+                            {move.evaluation > 0 ? '+' : ''}{move.evaluation.toFixed(2)}
+                        </span>
+                        {move.evaluation > 0 ? (
+                            <ChevronUp className="w-4 h-4 text-green-500" />
+                        ) : (
+                            <ChevronDown className="w-4 h-4 text-red-500" />
+                        )}
+                    </div>
+                )}
             </div>
         );
     };
@@ -56,25 +75,23 @@ const GameAnalysis = ({
             <div className="flex items-center gap-4 mb-6 flex-shrink-0">
                 <div className="relative h-48 w-16 bg-gray-700 rounded-lg overflow-hidden">
                     <div 
-                        className="absolute bottom-0 w-full bg-white transition-all duration-300 ease-in-out"
+                        className="absolute bottom-0 w-full transition-all duration-300 ease-in-out"
                         style={{ 
                             height: getEvalBarHeight(),
-                            backgroundColor: evaluation >= 0 ? 'white' : 'black'
+                            backgroundColor: winningChances.white >= 50 ? 'white' : 'black'
                         }}
                     />
                     <div className="absolute inset-0 flex flex-col justify-between items-center py-2 text-sm font-semibold">
-                        <span>{winningChances.white}%</span>
-                        <span>{winningChances.black}%</span>
+                        <span>{winningChances.white.toFixed(1)}%</span>
+                        <span>{winningChances.black.toFixed(1)}%</span>
                     </div>
                 </div>
                 
-                <div className="text-2xl font-mono">
-                    {evaluation > 0 ? '+' : ''}{evaluation.toFixed(2)}
-                </div>
+
             </div>
 
             {/* Suggestions */}
-            {showSuggestion && (
+            {showSuggestion && suggestions && (
                 <div className="space-y-4 p-4 bg-[#1e293b] rounded-lg border border-gray-500 shadow-lg animate-fade-in mb-4 flex-shrink-0">
                     <h3 className="text-lg font-semibold mb-2 text-purple-400">💡 Suggestions</h3>
                     <p className="text-white text-sm leading-relaxed">{suggestions}</p>
