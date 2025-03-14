@@ -7,7 +7,7 @@ import { useNavigate } from "react-router-dom";
 export const Home = () => {
   const [board] = useState(new Chess().board());
   const navigate = useNavigate();
-  const { init_game, setTime,create_game , setSuggestion , join_game } = useGlobalState((state) => state);
+  const { init_game, setTime, create_game, setSuggestion, join_game } = useGlobalState((state) => state);
   const [totalTime, setTotalTime] = useState(300);
   const [increment, setIncrement] = useState(5);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -54,6 +54,14 @@ export const Home = () => {
       return;
     }
     setShowJoinGameModal(true);
+  };
+
+  const handleViewHistory = () => {
+    if (!isLoggedIn) {
+      navigate("/auth");
+      return;
+    }
+    navigate("/history");
   };
 
   const submitJoinGame = () => {
@@ -197,6 +205,17 @@ export const Home = () => {
             <span className="absolute -inset-x-3 bottom-0 h-1 bg-purple-300 opacity-30 group-hover:h-full group-hover:opacity-10 transition-all duration-500"></span>
             <span className="relative flex items-center justify-center">
               🔗 Join Game
+            </span>
+          </button>
+          
+          {/* Game History Button */}
+          <button
+            className="w-full text-white font-bold text-lg p-4 bg-gradient-to-r from-amber-700 to-amber-500 rounded-lg shadow-lg hover:shadow-amber-500/30 hover:scale-105 transition-all duration-300 relative overflow-hidden group"
+            onClick={handleViewHistory}
+          >
+            <span className="absolute -inset-x-3 bottom-0 h-1 bg-amber-300 opacity-30 group-hover:h-full group-hover:opacity-10 transition-all duration-500"></span>
+            <span className="relative flex items-center justify-center">
+              📜 Match History
             </span>
           </button>
         </div>

@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.websocket_handlers import websocket_endpoint
 from app.auth import router as auth_router
+from app.game_route import router as game_router
 from db.db import engine, Base
 
 # Initialize database
@@ -15,6 +16,7 @@ app = FastAPI()
 
 # Add routers
 app.include_router(auth_router)
+app.include_router(game_router)
 
 # Add middleware
 app.add_middleware(

@@ -5,6 +5,8 @@ import { useEffect } from 'react';
 import { Matching } from './components/Matching';
 import { Waiting } from './components/Waiting';
 import { Game } from './pages/Game';
+import { GameHistory } from './pages/GameHistory'; 
+import { GameReplay } from './pages/GamePlayer';
 import Auth from './pages/Auth';
 import { setupWebSocketHandler, useWebSocketEvent } from './utils/WebSocketHandler';
 
@@ -58,6 +60,8 @@ const App = () => {
       <Route path="/game/:gameId" element={<Game totalTime={0} increment={0}/>}/>
       <Route path="/auth" element={<Auth/>}/>
       <Route path="/waiting" element={<Waiting />} />
+      <Route path="/history" element={<GameHistory />} /> 
+      <Route path="/replay/:game_id" element={<GameReplay />} /> 
     </Routes>
   );
 };
