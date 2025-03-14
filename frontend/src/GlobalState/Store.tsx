@@ -15,17 +15,18 @@ interface GlobalState {
     setTime: (time: number) => void;
     setSuggestion: (suggestion: boolean) => void;
     set_activePlayer: (activePlayer: string) => void;
-    send_offer: (target: string , offer: any) => void;
-    send_answer: (target: string , answer: any) => void;
-    send_ice_candidate: (target: string , candidate: any) => void;
+    send_offer: (to: string, offer: RTCSessionDescriptionInit) => void;
+    send_answer: (to: string, answer: RTCSessionDescriptionInit) => void;
+    send_ice_candidate: (to: string, candidate: RTCIceCandidateInit) => void;
 }
 
-export const useGlobalState = create<GlobalState>((set,get) => ({
+export const useGlobalState = create<GlobalState>((set, get) => ({
     socket: null,
     time: null,
-    activePlayer:null,
-    suggestion:false,
+    activePlayer: null,
+    suggestion: false,
     game_id: null,
+    
     init_game: async (message: any) => { 
         let socket = get().socket;
     
@@ -34,8 +35,29 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
     
             // Wrap the WebSocket connection in a Promise to await onopen
             await new Promise<void>((resolve, reject) => {
-
                 if(!socket) return;
+
+                // Add to the GlobalState store (Store.tsx)
+                const HEARTBEAT_INTERVAL = 15000; // 15 seconds
+
+                // Setup heartbeat interval
+                const heartbeatInterval = setInterval(() => {
+                    if (socket && socket.readyState === WebSocket.OPEN) {
+                        socket.send(JSON.stringify({
+                            event: "PING",
+                            data: {}
+                        }));
+                        console.log("❤️ Sending heartbeat");
+                    }
+                }, HEARTBEAT_INTERVAL);
+                
+                // Clear interval when socket closes
+                socket.onclose = () => {
+                    console.log("🔌 WebSocket closed");
+                    clearInterval(heartbeatInterval);
+                    // Existing reconnection logic
+                };
+
                 socket.onopen = () => {
                     console.log("✅ WebSocket connection established");
                     resolve();
@@ -75,6 +97,7 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
         }
     },
 
+    // Other methods remain unchanged...
     create_game: async (message: any) => {
         let socket = get().socket;
     
@@ -83,7 +106,6 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
         }
         
         await new Promise<void>((resolve, reject) => {
-
             if(!socket) return;
             socket.onopen = () => {
                 console.log("✅ WebSocket connection established");
@@ -120,6 +142,7 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
 
         set({ socket });
     },
+    
     join_game: async (message: any) => {
         let socket = get().socket;
 
@@ -190,6 +213,7 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
             }
         }
     },
+    
     reconnect_game: async (message: any) => {
         let socket = get().socket;
     
@@ -249,6 +273,7 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
         set({ socket });
         console.log("new socket is :",socket)
     },
+    
     make_move: async (message: any) => {
         let socket = get().socket;
     
@@ -276,9 +301,7 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
             return;
         }
     
-        try {
-
-            
+        try {            
             socket.send(
                 JSON.stringify({
                     event: "MOVE",
@@ -294,28 +317,36 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
             console.error("🚨 Error sending message:", e);
         }
     },
-    setGameID : (game_id: string) => {
+    
+    setGameID: (game_id: string) => {
         set({ game_id: game_id });
     },
-    setTime : (time: number) => {
+    
+    setTime: (time: number) => {
         if (time === 0) {
             set({ time: null });
         } else {
             set({ time: time });
         }
     },
-    setSuggestion : (suggestion: boolean) => {
+    
+    setSuggestion: (suggestion: boolean) => {
         set({ suggestion: suggestion });
     },
-    set_activePlayer : (activePlayer: string) => {
+    
+    set_activePlayer: (activePlayer: string) => {
         set({ activePlayer: activePlayer });
     },
-    send_offer: async (target: string, offer:any) => {
-        let socket = get().socket;
+    
+    // Improved WebRTC signaling methods
+    send_offer: async (to: string, offer: RTCSessionDescriptionInit) => {
+        const socket = get().socket;
         if (!socket) {
             console.error("❌ WebSocket instance is missing.");
             return;
         }
+
+        // Wait for socket to be ready
         if (socket.readyState === WebSocket.CONNECTING) {
             console.log("⏳ WebSocket is still connecting, waiting...");
             await new Promise<void>((resolve) => {
@@ -324,76 +355,111 @@ export const useGlobalState = create<GlobalState>((set,get) => ({
                         clearInterval(checkInterval);
                         resolve();
                     }
-                }, 100); // Check every 100ms
+                }, 100);
             });
         }
-        
+
         if (socket.readyState === WebSocket.OPEN) {
-            try{
+            try {
                 socket.send(
                     JSON.stringify({
                         event: "OFFER",
                         data: {
-                            target: target,
-                            offer: offer
+                            game_id: get().game_id,
+                            from: sessionStorage.getItem("username"),
+                            target: to,
+                            offer: offer  // Keep as 'offer' as the hook expects this property name
                         }
                     })
-                )
-                console.log("📩 Send Offer");
-            }catch(e){
-                console.error("🚨 Error sending message:", e);
+                );
+                console.log("📤 Sent WebRTC offer to:", to);
+            } catch (e) {
+                console.error("🚨 Error sending offer:", e);
             }
-        }
-        if (socket.readyState !== WebSocket.OPEN) {
-            console.error("❌ WebSocket is not open. Unable to send MOVE.");
-            return;
+        } else {
+            console.error("❌ WebSocket is not open. Unable to send offer.");
         }
     },
-    send_answer: async (target: string, answer:any) => {
-        let socket = get().socket;
+    
+    send_answer: async (to: string, answer: RTCSessionDescriptionInit) => {
+        const socket = get().socket;
         if (!socket) {
             console.error("❌ WebSocket instance is missing.");
             return;
         }
-        if (socket.readyState === WebSocket.OPEN) {
-            socket.send(
-                JSON.stringify({
-                    event: "ANSWER",
-                    data: {
-                        target: target,
-                        answer: answer
+
+        // Wait for socket to be ready
+        if (socket.readyState === WebSocket.CONNECTING) {
+            console.log("⏳ WebSocket is still connecting, waiting...");
+            await new Promise<void>((resolve) => {
+                const checkInterval = setInterval(() => {
+                    if (socket.readyState === WebSocket.OPEN) {
+                        clearInterval(checkInterval);
+                        resolve();
                     }
-                })
-            )
+                }, 100);
+            });
         }
-    
-        if (socket.readyState !== WebSocket.OPEN) {
-            console.error("❌ WebSocket is not open. Unable to send MOVE.");
-            return;
+
+        if (socket.readyState === WebSocket.OPEN) {
+            try {
+                socket.send(
+                    JSON.stringify({
+                        event: "ANSWER",
+                        data: {
+                            game_id: get().game_id,
+                            from: sessionStorage.getItem("username"),
+                            target: to,
+                            answer: answer  // Keep as 'answer' as the hook expects this property name
+                        }
+                    })
+                );
+                console.log("📤 Sent WebRTC answer to:", to);
+            } catch (e) {
+                console.error("🚨 Error sending answer:", e);
+            }
+        } else {
+            console.error("❌ WebSocket is not open. Unable to send answer.");
         }
     },
-    send_ice_candidate: async (target: string, candidate:any) => {
-        let socket = get().socket;
+    
+    send_ice_candidate: async (to: string, candidate: RTCIceCandidateInit) => {
+        const socket = get().socket;
         if (!socket) {
             console.error("❌ WebSocket instance is missing.");
             return;
         }
-        if (socket.readyState === WebSocket.OPEN) {
-            socket.send(
-                JSON.stringify({
-                    event: "ICE_CANDIDATE",
-                    data: {
-                        target: target,
-                        candidate: candidate
+
+        // Wait for socket to be ready
+        if (socket.readyState === WebSocket.CONNECTING) {
+            console.log("⏳ WebSocket is still connecting, waiting...");
+            await new Promise<void>((resolve) => {
+                const checkInterval = setInterval(() => {
+                    if (socket.readyState === WebSocket.OPEN) {
+                        clearInterval(checkInterval);
+                        resolve();
                     }
-                })
-            )
+                }, 100);
+            });
         }
-    
-        if (socket.readyState !== WebSocket.OPEN) {
-            console.error("❌ WebSocket is not open. Unable to send MOVE.");
-            return;
+
+        if (socket.readyState === WebSocket.OPEN) {
+            try {
+                socket.send(
+                    JSON.stringify({
+                        event: "ICE_CANDIDATE",
+                        data: {
+                            game_id: get().game_id,
+                            from: sessionStorage.getItem("username"),
+                            target: to,
+                            candidate: candidate
+                        }
+                    })
+                );
+                console.log("❄️ Sent ICE candidate to:", to);
+            } catch (e) {
+                console.error("🚨 Error sending ICE candidate:", e);
         }
-    },
-    
+    }
+}
 }));

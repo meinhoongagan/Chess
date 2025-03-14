@@ -7,7 +7,7 @@ import GameAnalysis from "../components/GameAnalysis";
 import { useGameState } from "../components/useGameState";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useWebSocketEvent } from "../utils/WebSocketHandler";
-import { useWebRTC } from "../utils/useWebRTC"; // Import the WebRTC hook
+import { useWebRTC } from "../utils/useWebRTC";
 
 interface GameProps {
     totalTime: number;
@@ -24,9 +24,7 @@ export const Game = ({ totalTime, increment }: GameProps) => {
     const [reconnectAttempts, setReconnectAttempts] = useState<number>(0);
     const [connectionStatus, setConnectionStatus] = useState<'connected'|'disconnected'|'reconnecting'>('connected');
     const [socketReady, setSocketReady] = useState<boolean>(false);
-    const [forceRTCInit, setForceRTCInit] = useState<boolean>(false);
-    const gameInitialized = useRef<boolean>(false);
-
+    const [rtcConnectionActive, setRtcConnectionActive] = useState<boolean>(false);
     const MAX_RECONNECT_ATTEMPTS = 5;
 
     const {
@@ -74,20 +72,10 @@ export const Game = ({ totalTime, increment }: GameProps) => {
     // Monitor WebRTC initialization status
     useEffect(() => {
         console.log("WebRTC initialization status:", { rtcInitialized });
-    }, [rtcInitialized]);
-
-    // Force WebRTC initialization after a timeout if normal initialization doesn't occur
-    useEffect(() => {
-        if (username && opponent && white && !rtcInitialized && socketReady) {
-            const timer = setTimeout(() => {
-                console.log("⏱️ Forcing WebRTC initialization after timeout");
-                setForceRTCInit(true);
-                gameInitialized.current = true;
-            }, 5000);
-            
-            return () => clearTimeout(timer);
+        if (rtcInitialized) {
+            setRtcConnectionActive(true);
         }
-    }, [username, opponent, white, rtcInitialized, socketReady]);
+    }, [rtcInitialized]);
 
     const handleMove = useCallback((data: any) => {
         try {
@@ -178,9 +166,6 @@ export const Game = ({ totalTime, increment }: GameProps) => {
         }));
         
         console.log("🔄 Game state restored successfully");
-        
-        // Mark the game as initialized to allow WebRTC to start
-        gameInitialized.current = true;
     }, [chess, setBoard, setGameState, suggestion, setGameID]);
 
     const handleReconnection = useCallback((data: any) => {
@@ -194,9 +179,6 @@ export const Game = ({ totalTime, increment }: GameProps) => {
         setReconnectAttempts(0);
         setIsReconnecting(false);
         setConnectionStatus('connected');
-        
-        // Mark the game as initialized
-        gameInitialized.current = true;
     }, [handleGameState]);
 
     // Register WebSocket event handlers using the centralized system
@@ -208,41 +190,166 @@ export const Game = ({ totalTime, increment }: GameProps) => {
 
     // Register WebRTC-related WebSocket event handlers
     useWebSocketEvent('OFFER', (data: any) => {
-        if (rtcInitialized && peerConnection) {
-            console.log("📞 Received offer from", data.data.from);
+        console.log("📞 Received offer:", data);
+        if (!data.data || !data.data.offer || !data.data.from) {
+            console.error("💥 Malformed offer data:", data);
+            return;
+        }
+
+        if (peerConnection) {
+            console.log("📞 Processing offer from", data.data.from);
+            
+            // Set remote description from the offer
             peerConnection.setRemoteDescription(new RTCSessionDescription(data.data.offer))
-                .then(() => peerConnection.createAnswer())
-                .then((answer: RTCSessionDescriptionInit) => {
-                    peerConnection.setLocalDescription(answer);
-                    send_answer(data.data.from, answer);
+                .then(() => {
+                    console.log("✅ Remote description set successfully from offer");
+                    // Create answer
+                    return peerConnection.createAnswer();
                 })
-                .catch((err: Error) => console.error("Error handling offer:", err));
+                .then((answer: RTCSessionDescriptionInit) => {
+                    console.log("✅ Answer created successfully");
+                    // Set local description
+                    return peerConnection.setLocalDescription(answer)
+                        .then(() => answer);
+                })
+                .then((answer: RTCSessionDescriptionInit) => {
+                    console.log("✅ Local description set successfully");
+                    // Send answer to peer
+                    if (data.data.from) {
+                        console.log("📤 Sending answer to:", data.data.from);
+                        send_answer(data.data.from, answer);
+                    }
+                })
+                .catch((err: Error) => {
+                    console.error("❌ Error handling offer:", err);
+                });
         } else {
-            console.log("⚠️ Received offer but WebRTC not initialized or no peerConnection", 
-                { rtcInitialized, hasPeerConnection: !!peerConnection });
+            console.warn("⚠️ Received offer but peerConnection is not initialized");
         }
     });
 
     useWebSocketEvent('ANSWER', (data: any) => {
-        if (rtcInitialized && peerConnection) {
-            console.log("📞 Received answer from", data.data.from);
+        console.log("📞 Received answer:", data);
+        if (!data.data || !data.data.answer || !data.data.from) {
+            console.error("💥 Malformed answer data:", data);
+            return;
+        }
+
+        if (peerConnection) {
+            console.log("📞 Processing answer from", data.data.from);
+            
+            // Check if we need to handle ICE gathering state
+            const currentState = peerConnection.iceGatheringState;
+            console.log("Current ICE gathering state:", currentState);
+            
+            // Set remote description from the answer
             peerConnection.setRemoteDescription(new RTCSessionDescription(data.data.answer))
-                .catch((err: Error) => console.error("Error handling answer:", err));
+                .then(() => {
+                    console.log("✅ Remote description set successfully from answer");
+                    setRtcConnectionActive(true);
+                })
+                .catch((err: Error) => {
+                    console.error("❌ Error handling answer:", err);
+                });
         } else {
-            console.log("⚠️ Received answer but WebRTC not initialized or no peerConnection");
+            console.warn("⚠️ Received answer but peerConnection is not initialized");
         }
     });
 
     useWebSocketEvent('ICE_CANDIDATE', (data: any) => {
-        if (rtcInitialized && peerConnection) {
-            console.log("❄️ Received ICE candidate from", data.data.from);
+        console.log("❄️ Received ICE candidate:", data);
+        if (!data.data || !data.data.candidate || !data.data.from) {
+            console.error("💥 Malformed ICE candidate data:", data);
+            return;
+        }
+
+        if (peerConnection) {
+            console.log("❄️ Processing ICE candidate from", data.data.from);
+            
+            // Add ICE candidate
             peerConnection.addIceCandidate(new RTCIceCandidate(data.data.candidate))
-                .catch((err: Error) => console.error("Error adding ICE candidate:", err));
+                .then(() => {
+                    console.log("✅ ICE candidate added successfully");
+                })
+                .catch((err: Error) => {
+                    console.error("❌ Error adding ICE candidate:", err);
+                });
         } else {
-            console.log("⚠️ Received ICE candidate but WebRTC not initialized or no peerConnection");
+            console.warn("⚠️ Received ICE candidate but peerConnection is not initialized");
         }
     });
 
+    // Initialize game data and handle reconnection
+    useEffect(() => {
+        const storedUsername = sessionStorage.getItem("username");
+        const storedOpponent = sessionStorage.getItem("opponent");
+        const storedWhite = sessionStorage.getItem("white");
+        const savedGameId = sessionStorage.getItem("game_id");
+        
+        setUsername(storedUsername);
+        setOpponent(storedOpponent);
+        setWhite(storedWhite);
+        
+        console.log("Game initialization:", { 
+            username: storedUsername, 
+            opponent: storedOpponent, 
+            white: storedWhite, 
+            savedGameId, 
+            currentGameId: game_id 
+        });
+        
+        if (savedGameId && !game_id) {
+            // If we have a game_id in sessionStorage but not in state, attempt to reconnect
+            console.log("💾 Found saved game_id in session, attempting reconnection:", savedGameId);
+            reconnect_game({ gameId: savedGameId });
+        }
+        
+        // Set up window beforeunload to save game state
+        window.addEventListener('beforeunload', saveGameState);
+        
+        return () => {
+            window.removeEventListener('beforeunload', saveGameState);
+        };
+    }, [game_id, reconnect_game]);
+
+    const saveGameState = () => {
+        if (game_id) {
+            sessionStorage.setItem("game_id", game_id);
+        }
+    };
+
+    // Handle socket disconnection and reconnection
+    useEffect(() => {
+        if (!socket && game_id && connectionStatus !== 'reconnecting' && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            console.log("🔍 Socket connection lost, attempting to reconnect...", game_id);
+            setConnectionStatus('reconnecting');
+            
+            const reconnectTimer = setTimeout(() => {
+                console.log("🔄 Attempting reconnection...", reconnectAttempts + 1, "of", MAX_RECONNECT_ATTEMPTS);
+                reconnect_game({ gameId: game_id });
+                setReconnectAttempts(prev => prev + 1);
+                
+                // If we reach max attempts, stop trying
+                if (reconnectAttempts + 1 >= MAX_RECONNECT_ATTEMPTS) {
+                    console.log("❌ Max reconnection attempts reached");
+                    setConnectionStatus('disconnected');
+                }
+            }, Math.min(2000 * (reconnectAttempts + 1), 10000)); // Exponential backoff with a cap
+            
+            return () => clearTimeout(reconnectTimer);
+        }
+    }, [socket, game_id, connectionStatus, reconnectAttempts, reconnect_game]);
+
+    // Reset reconnection state when socket is restored
+    useEffect(() => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            console.log("✅ Connection established/restored");
+            setReconnectAttempts(0);
+            setConnectionStatus('connected');
+        }
+    }, [socket]);
+
+    // Handle square click for chess moves
     const handleSquareClick = (square: string, piece: { square: Square; type: PieceSymbol; color: Color } | null) => {
         try {
             if (moveFrom) {
@@ -268,9 +375,9 @@ export const Game = ({ totalTime, increment }: GameProps) => {
 
     const handleInitialSquareSelection = (square: string, piece: { square: Square; type: PieceSymbol; color: Color } | null) => {
         const currentTurn = sessionStorage.getItem("turn");
-        const username = sessionStorage.getItem("username");
+        const currentUsername = sessionStorage.getItem("username");
         
-        if (username !== currentTurn) {
+        if (currentUsername !== currentTurn) {
             alert("It's not your turn");
             return;
         }
@@ -340,67 +447,6 @@ export const Game = ({ totalTime, increment }: GameProps) => {
         }
     };
 
-    useEffect(() => {
-        setUsername(sessionStorage.getItem("username"));
-        setOpponent(sessionStorage.getItem("opponent"));
-        setWhite(sessionStorage.getItem("white"));
-        const savedGameId = sessionStorage.getItem("game_id");
-        if (savedGameId && !game_id) {
-            // If we have a game_id in sessionStorage but not in state, attempt to reconnect
-            console.log("💾 Found saved game_id in session, attempting reconnection:", savedGameId);
-            reconnect_game({ gameId: savedGameId });
-        } else {
-            // If we don't need to reconnect, mark the game as initialized after a short delay
-            const initTimer = setTimeout(() => {
-                gameInitialized.current = true;
-                console.log("🎮 Game marked as initialized");
-            }, 1000);
-            return () => clearTimeout(initTimer);
-        }
-        
-        // Set up window beforeunload to save game state
-        window.addEventListener('beforeunload', saveGameState);
-        
-        return () => {
-            window.removeEventListener('beforeunload', saveGameState);
-        };
-    }, [game_id, reconnect_game]);
-
-    const saveGameState = () => {
-        if (game_id) {
-            sessionStorage.setItem("game_id", game_id);
-        }
-    };
-
-    useEffect(() => {
-        if (!socket && game_id && connectionStatus !== 'reconnecting' && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-            console.log("🔍 Socket connection lost, attempting to reconnect...", game_id);
-            setConnectionStatus('reconnecting');
-            
-            const reconnectTimer = setTimeout(() => {
-                console.log("🔄 Attempting reconnection...", reconnectAttempts + 1, "of", MAX_RECONNECT_ATTEMPTS);
-                reconnect_game({ gameId: game_id });
-                setReconnectAttempts(prev => prev + 1);
-                
-                // If we reach max attempts, stop trying
-                if (reconnectAttempts + 1 >= MAX_RECONNECT_ATTEMPTS) {
-                    console.log("❌ Max reconnection attempts reached");
-                    setConnectionStatus('disconnected');
-                }
-            }, Math.min(2000 * (reconnectAttempts + 1), 10000)); // Exponential backoff with a cap
-            
-            return () => clearTimeout(reconnectTimer);
-        }
-    }, [socket, game_id, connectionStatus, reconnectAttempts, reconnect_game]);
-
-    useEffect(() => {
-        if (socket && socket.readyState === WebSocket.OPEN) {
-            console.log("✅ Connection established/restored");
-            setReconnectAttempts(0);
-            setConnectionStatus('connected');
-        }
-    }, [socket]);
-
     return (
         <div className="grid grid-cols-5 h-screen justify-center items-center bg-gradient-to-br from-[#0f172a] via-[#1e3a8a] to-[#581c87]">
             {/* Add hidden audio elements for WebRTC */}
@@ -425,8 +471,6 @@ export const Game = ({ totalTime, increment }: GameProps) => {
                 <button 
                     onClick={() => {
                         console.log("Manual WebRTC initialization triggered by user");
-                        gameInitialized.current = true;
-                        setForceRTCInit(true);
                     }}
                     className="absolute top-16 right-4 p-2 rounded-full bg-blue-500 text-white z-10"
                     title="Force WebRTC Connect"
