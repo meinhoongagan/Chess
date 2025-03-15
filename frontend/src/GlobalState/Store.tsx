@@ -31,7 +31,8 @@ export const useGlobalState = create<GlobalState>((set, get) => ({
         let socket = get().socket;
     
         if (!socket || socket.readyState === WebSocket.CLOSED) {
-            socket = new WebSocket("ws://localhost:8000/ws");
+            socket = new WebSocket(import.meta.env.VITE_API_WEBSOCKET_URL);
+
     
             // Wrap the WebSocket connection in a Promise to await onopen
             await new Promise<void>((resolve, reject) => {
@@ -102,7 +103,7 @@ export const useGlobalState = create<GlobalState>((set, get) => ({
         let socket = get().socket;
     
         if (!socket || socket.readyState === WebSocket.CLOSED) {
-            socket = new WebSocket("ws://localhost:8000/ws");
+            socket = new WebSocket(import.meta.env.VITE_API_WEBSOCKET_URL);
         }
         
         await new Promise<void>((resolve, reject) => {
@@ -151,7 +152,7 @@ export const useGlobalState = create<GlobalState>((set, get) => ({
     
         // Ensure we only create a new WebSocket if the previous one is closed
         if (!socket || socket.readyState === WebSocket.CLOSED) {
-            socket = new WebSocket("ws://localhost:8000/ws");
+            socket = new WebSocket(import.meta.env.VITE_API_WEBSOCKET_URL);
     
             socket.onopen = () => {
                 console.log("✅ WebSocket connection established");
@@ -218,7 +219,7 @@ export const useGlobalState = create<GlobalState>((set, get) => ({
         let socket = get().socket;
     
         if (!socket || socket.readyState === WebSocket.CLOSED) {
-            socket = new WebSocket("ws://localhost:8000/ws");
+            socket = new WebSocket(import.meta.env.VITE_API_WEBSOCKET_URL);
         }
     
         await new Promise<void>((resolve, reject) => {

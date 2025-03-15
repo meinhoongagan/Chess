@@ -34,7 +34,7 @@ export const GameHistory = () => {
 
   const fetchGameHistory = async (username: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/user/${username}/games`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/user/${username}/games`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch game history: ${response.statusText}`);

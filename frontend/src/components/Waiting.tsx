@@ -8,12 +8,15 @@ export const Waiting = () => {
   const { state } = location;
   const { isCreating, gameId, totalTime, increment } = state || {};
 
-  const { socket , setGameID } = useGlobalState(state => state);
+  const { socket, setGameID } = useGlobalState(state => state);
   
   interface GameInfo {
     game_id: string;
   }
-  const [gameInfo, setGameInfo] = useState<GameInfo | null>(null);
+  const [gameInfo, setGameInfo] = useState<GameInfo | null>(
+    // Initialize with gameId from location state if available
+    gameId ? { game_id: gameId } : null
+  );
   const [copied, setCopied] = useState(false);
   const [timeElapsed, setTimeElapsed] = useState(0);
   
@@ -64,11 +67,12 @@ export const Waiting = () => {
       }
       clearInterval(timer);
     };
-  }, [navigate, totalTime, increment]);
+  }, [navigate, totalTime, increment, socket, setGameID]);
   
   const copyGameId = () => {
-    if (gameInfo?.game_id) {
-      navigator.clipboard.writeText(gameInfo.game_id);
+    const idToCopy = gameInfo?.game_id || gameId;
+    if (idToCopy) {
+      navigator.clipboard.writeText(idToCopy);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -85,6 +89,9 @@ export const Waiting = () => {
     return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
   };
   
+  // Get the current game ID to display (either from gameInfo or from props)
+  const currentGameId = gameInfo?.game_id || gameId;
+  
   return (
     <div className="bg-gradient-to-br from-[#0f172a] via-[#1e3a8a] to-[#581c87] min-h-screen flex flex-col items-center justify-center p-4">
       <div className="bg-[#0f172a]/80 backdrop-blur-sm p-8 rounded-2xl shadow-2xl border border-gray-600/50 max-w-md w-full">
@@ -99,14 +106,14 @@ export const Waiting = () => {
           </div>
         </div>
         
-        {isCreating && gameInfo && (
+        {isCreating && currentGameId && (
           <div className="mb-6 bg-[#1e293b] rounded-lg p-4">
             <p className="text-gray-300 text-sm mb-2">Share this game ID with your friend:</p>
             <div className="flex">
               <input 
                 type="text" 
                 readOnly 
-                value={gameInfo.game_id} 
+                value={currentGameId} 
                 className="flex-1 bg-[#2d3748] text-white p-2 rounded-l-lg border border-gray-600 focus:outline-none"
               />
               <button 
@@ -119,9 +126,9 @@ export const Waiting = () => {
           </div>
         )}
         
-        {!isCreating && (
+        {!isCreating && currentGameId && (
           <p className="text-center text-gray-300 mb-6">
-            Connecting to game <span className="font-mono text-blue-300">{gameId}</span>...
+            Connecting to game <span className="font-mono text-blue-300">{currentGameId}</span>...
           </p>
         )}
         

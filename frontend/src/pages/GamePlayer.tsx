@@ -27,7 +27,7 @@ export const GameReplay = () => {
   useEffect(() => {
     const fetchGameData = async () => {
       try {
-        const response = await fetch(`http://localhost:8000/game/${game_id}`);
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/game/${game_id}`);
         if (!response.ok) throw new Error("Failed to fetch game data");
         
         const data: GameData = await response.json();
