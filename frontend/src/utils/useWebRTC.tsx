@@ -14,7 +14,7 @@ export const useWebRTC = ({
   opponent, 
   white, 
   send_offer, 
-  send_answer, 
+  // send_answer, 
   send_ice_candidate 
 }: WebRTCProps) => {
   const [isInitialized, setIsInitialized] = useState<boolean>(false);

@@ -5,7 +5,7 @@ import { useGlobalState } from "../GlobalState/Store";
 import WinnerPopup from "../components/WinnerPopup";
 import GameAnalysis from "../components/GameAnalysis";
 import { useGameState } from "../components/useGameState";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useWebSocketEvent } from "../utils/WebSocketHandler";
 import { useWebRTC } from "../utils/useWebRTC";
 
@@ -67,6 +67,7 @@ export const Game = ({ totalTime, increment }: GameProps) => {
             console.log("🔄 WebSocket not ready - setting socketReady to false");
             setSocketReady(false);
         }
+        
     }, [socket]);
 
     // Monitor WebRTC initialization status
@@ -169,6 +170,9 @@ export const Game = ({ totalTime, increment }: GameProps) => {
     }, [chess, setBoard, setGameState, suggestion, setGameID]);
 
     const handleReconnection = useCallback((data: any) => {
+        console.log(isReconnecting, "isReconnecting");
+        console.log(rtcConnectionActive, "reconnectAttempts");
+        console.log(socketReady, "socketReady");
         console.log("🔄 Reconnection successful in Game component!", data);
         
         // If we have gameState embedded in the reconnection event

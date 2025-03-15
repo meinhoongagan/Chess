@@ -114,9 +114,9 @@ export const GameReplay = () => {
     }
   };
 
-  const toggleAutoplay = () => {
-    setAutoplay(!autoplay);
-  };
+  // const toggleAutoplay = () => {
+  //   setAutoplay(!autoplay);
+  // };
 
   // Format the move number to show proper chess notation (e.g., 1. e4)
   const formatMoveNumber = (index: number) => {

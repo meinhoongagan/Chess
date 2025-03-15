@@ -19,7 +19,7 @@ interface GameAnalysisProps {
 }
 
 const GameAnalysis = ({ 
-    evaluation = 0,
+    // evaluation = 0,
     winningChances = { white: 50, black: 50 },
     moveHistory = [] as ChessMove[],
     suggestions = "",
